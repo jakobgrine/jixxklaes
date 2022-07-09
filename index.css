@@ -1,0 +1,30 @@
+* {
+	font-family: "Press Start 2P";
+	color: white;
+}
+
+body {
+	margin: 0;
+	background: black;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+h1 {
+	position: absolute;
+	text-align: center;
+	animation: showup 2s cubic-bezier(1, 0, 0.5, 1);
+	font-size: 3rem;
+}
+
+@keyframes showup {
+	from {
+		transform: scale(200%) translateY(300%);
+	}
+}
+
+#canvas {
+	margin-top: 8rem;
+	border: 1px solid white;
+}
