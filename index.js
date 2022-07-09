@@ -8,7 +8,7 @@ const MAX_FALL_VELOCITY = -120;
 const TOP_PADDING = 200;
 const BOTTOM_PADDING = 200;
 
-const _SHOW_HITBOXES = true;
+const _SHOW_HITBOXES = false;
 
 let seed = "jixxklääs";
 
