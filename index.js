@@ -261,6 +261,7 @@ function setSeed(it) {
     seedElement.value = it;
   }
   window.location.hash = `#${it}`;
+  document.title = it;
 }
 
 function main() {
