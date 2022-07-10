@@ -1,315 +1,437 @@
 const JUMPS = 3;
 const GRAVITY = -40;
-// const AIR_FRICTION = 0.2;
 const GROUND_FRICTION = 4;
 const WALK_VELOCITY = 40;
 const JUMP_VELOCITY = 120;
 const MAX_FALL_VELOCITY = -120;
 const TOP_PADDING = 200;
 const BOTTOM_PADDING = 200;
+const DEFAULT_HASH = "Jixxklääs";
 
-const _SHOW_HITBOXES = false;
+let _SHOW_DEBUG_INFO = false;
+const _FONT_SIZE = 20;
 
-let seed = "jixxklääs";
-
-let canvas, context;
-let keyDAPressed = false;
-let jumps = 0;
-let scrollY = 0;
-
-let highscore = localStorage.getItem("highscore") || 0;
-let score = 0;
-function setHighscore(it) {
-    highscore = it;
-    localStorage.setItem("highscore", it);
+// See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+function cyrb128(str) {
+  let h1 = 1779033703,
+    h2 = 3144134277,
+    h3 = 1013904242,
+    h4 = 2773480762;
+  for (let i = 0, k; i < str.length; i++) {
+    k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [
+    (h1 ^ h2 ^ h3 ^ h4) >>> 0,
+    (h2 ^ h1) >>> 0,
+    (h3 ^ h1) >>> 0,
+    (h4 ^ h1) >>> 0,
+  ];
 }
+
+function sfc32(a, b, c, d) {
+  return function () {
+    a >>>= 0;
+    b >>>= 0;
+    c >>>= 0;
+    d >>>= 0;
+    var t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    t = (t + d) | 0;
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+}
+
+let playerSprite;
+let canvas, context;
+let lastTime = 0;
+let jumps = 0;
+let colliding, walking;
+let scrollPosition = 0;
+let generatedUntil = 0;
+let score = 0,
+  highscore = 0;
+
+const Colliding = {
+  Ceiling: "Ceiling",
+  Ground: "Ground",
+  Wall: "Wall",
+};
+const Direction = {
+  Left: "Left",
+  Right: "Right",
+};
 
 class Vec2 {
-    constructor(x, y) {
-	this.x = x;
-	this.y = y;
-    }
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
 
-    add(other) {
-	return new Vec2(
-	    this.x + other.x,
-	    this.y + other.y,
-	);
-    }
+  add(other) {
+    return new Vec2(this.x + other.x, this.y + other.y);
+  }
 
-    mul(factor) {
-	return new Vec2(
-	    this.x * factor,
-	    this.y * factor,
-	);
-    }
+  mul(factor) {
+    return new Vec2(this.x * factor, this.y * factor);
+  }
+
+  abs() {
+    return new Vec2(Math.abs(this.x), Math.abs(this.y));
+  }
 }
 
-class Platform {
-    constructor(x, y, w, h) {
-	this.pos = new Vec2(x, y);
-	this.size = new Vec2(w, h);
+class GameObject {
+  r;
+  size;
+
+  constructor(x, y, w, h) {
+    this.r = new Vec2(x, y);
+    this.size = new Vec2(w, h);
+  }
+
+  get topLeft() {
+    return this.r;
+  }
+
+  get bottomRight() {
+    return this.r.add(this.size);
+  }
+
+  get center() {
+    return this.r.add(this.size.mul(0.5));
+  }
+
+  paint(context) {
+    context.fillStyle = "white";
+    context.fillRect(this.r.x, this.r.y, this.size.x, this.size.y);
+  }
+
+  collidesWith(other) {
+    return (
+      this.bottomRight.x >= other.topLeft.x &&
+      this.topLeft.x <= other.bottomRight.x &&
+      this.bottomRight.y >= other.topLeft.y &&
+      this.topLeft.y <= other.bottomRight.y
+    );
+  }
+
+  overlapWith(other) {
+    const overlap = new Vec2(Infinity, Infinity);
+
+    if (this.topLeft.x < other.topLeft.x) {
+      overlap.x = this.bottomRight.x - other.topLeft.x;
+    } else if (this.bottomRight.x > other.bottomRight.x) {
+      overlap.x = other.bottomRight.x - this.topLeft.x;
+    }
+    if (this.topLeft.y < other.topLeft.y) {
+      overlap.y = this.bottomRight.y - other.topLeft.y;
+    } else if (this.bottomRight.y > other.bottomRight.y) {
+      overlap.y = other.bottomRight.y - this.topLeft.y;
     }
 
-    update(dt, colliding, onGround) {}
+    overlap.x = Math.min(overlap.x, this.size.x, other.size.x);
+    overlap.y = Math.min(overlap.y, this.size.y, other.size.y);
 
-    paint(context) {
-	context.fillStyle = "white";
-	context.fillRect(
-	    this.pos.x, this.pos.y,
-	    this.size.x, this.size.y,
-	);
-    }
+    return overlap;
+  }
 }
 
-let playerHeight;
-const playerSprite = new Image();
-playerSprite.onload = () => {
-    playerHeight = playerSprite.height;
-};
-playerSprite.src = "player.png";
-
-class Player {
-    constructor(x, y, scale) {
-	this.pos = new Vec2(x, y);
-	this.scale = scale;
-	this.size = new Vec2(
-	    scale * playerSprite.width / playerSprite.height,
-	    scale,
-	);
-
-	this.a = new Vec2(0, GRAVITY);
-	this.v = new Vec2(0, 0);
-    }
-
-    update(dt, colliding, onGround) {
-	if (isNaN(this.size.x)) { // dirty bug fix: img.width,img.height are 0 on first load
-	    this.size = new Vec2(
-		this.scale * playerSprite.width / playerSprite.height,
-		this.scale,
-	    );
-	    return;
-	}
-
-	if (!colliding)
-	    this.v = this.v.add(this.a.mul(dt));
-
-	const sign = (this.v.x > 0) ? 1 : -1;
-	if (onGround && this.v.x !== 0 && !keyDAPressed) {
-	    this.v.x += -sign * GROUND_FRICTION;
-	}
-	/*if (!onGround && this.v.x !== 0) {
-			this.v.x += -sign * AIR_FRICTION;
-		}*/
-
-	if (this.v.y < MAX_FALL_VELOCITY) {
-	    this.v.y = MAX_FALL_VELOCITY;
-	}
-
-	this.pos = this.pos.add(this.v.mul(dt));
-
-	const diffTop = canvas.height - (this.pos.y - scrollY + this.size.y) - TOP_PADDING;
-	const diffBottom = BOTTOM_PADDING - (this.pos.y - scrollY);
-	if (diffTop < 0) {
-	    scrollY -= diffTop;
-	    context.translate(0, diffTop);
-	}
-	if (diffBottom > 0) {
-	    scrollY -= diffBottom;
-	    context.translate(0, diffBottom);
-	}
-    }
-
-    paint(context) {
-	if (this.v.x > 0) {
-	    this.direction = "right";
-	} else if (this.v.x < 0) {
-	    this.direction = "left";
-	}
-
-	if (_SHOW_HITBOXES) {
-	    context.strokeStyle = "white";
-	    context.strokeRect(
-		this.pos.x, this.pos.y,
-		this.size.x, this.size.y,
-	    );
-	}
-
-	const center = this.pos.add(this.size.mul(0.5));
-	context.save();
-	context.translate(center.x, center.y);
-	context.scale(this.direction === "left" ? 1 : -1, -1);
-	context.translate(-center.x, -center.y);
-	context.drawImage(
-	    playerSprite,
-	    this.pos.x, this.pos.y,
-	    this.size.x, this.size.y,
-	);
-	context.restore();
-    }
+class Platform extends GameObject {
+  constructor(x, y, w, h) {
+    super(x, y, w, h);
+  }
 }
 
-const player = new Player(250, 150, 100);
-const objects = [];
-let generatedUntilY = 0;
+class Player extends GameObject {
+  a;
+  v;
+
+  constructor(x, y, h) {
+    // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
+    const aspectRatio = 283 / 700;
+    super(x, y, aspectRatio * h, h);
+
+    this.a = new Vec2(0, GRAVITY);
+    this.v = new Vec2(0, 0);
+  }
+
+  update(dt, colliding) {
+    if (colliding !== Colliding.Ground) {
+      this.v = this.v.add(this.a.mul(dt));
+    }
+
+    // Stop at walls
+    if (colliding === Colliding.Wall) {
+      this.v.x = 0;
+    }
+
+    if (walking === Direction.Right) {
+      this.v.x = WALK_VELOCITY;
+    } else if (walking === Direction.Left) {
+      this.v.x = -WALK_VELOCITY;
+    }
+
+    // Slow down when on ground
+    const sign = this.v.x > 0 ? 1 : -1;
+    if (this.v.x !== 0 && colliding === Colliding.Ground && !walking) {
+      this.v.x -= sign * GROUND_FRICTION;
+    }
+
+    // Constrain to maximum velocity
+    if (this.v.y < MAX_FALL_VELOCITY) {
+      this.v.y = MAX_FALL_VELOCITY;
+    }
+
+    // Calculate facing direction
+    if (this.v.x > 0) {
+      this.direction = Direction.Right;
+    } else if (this.v.x < 0) {
+      this.direction = Direction.Left;
+    }
+
+    this.r = this.r.add(this.v.mul(dt));
+
+    const topDistance =
+      TOP_PADDING - (canvas.height - (this.r.y + this.size.y - scrollPosition));
+    if (topDistance > 0) {
+      // Move viewport up
+      scrollPosition += topDistance;
+      context.translate(0, -topDistance);
+    }
+    const bottomDistance = BOTTOM_PADDING - (this.r.y - scrollPosition);
+    if (bottomDistance > 0) {
+      // Move viewport down
+      scrollPosition -= bottomDistance;
+      context.translate(0, bottomDistance);
+    }
+  }
+
+  paint(context) {
+    if (_SHOW_DEBUG_INFO) {
+      context.strokeStyle = "blue";
+      context.strokeRect(this.r.x, this.r.y, this.size.x, this.size.y);
+    }
+
+    context.save();
+    context.translate(this.center.x, this.center.y);
+    context.scale(this.direction === Direction.Left ? 1 : -1, -1);
+    context.translate(-this.center.x, -this.center.y);
+    context.drawImage(
+      playerSprite,
+      this.r.x,
+      this.r.y,
+      this.size.x,
+      this.size.y
+    );
+    context.restore();
+  }
+}
+
+const player = new Player(250, 100, 100);
+let objects = [];
+
+let seed, rand;
+function setSeed(it) {
+  it = decodeURI(it);
+
+  seed = cyrb128(it);
+  rand = sfc32(seed[0], seed[1], seed[2], seed[3]);
+
+  objects = [];
+  addDefaultPlatforms();
+  generatedUntil = 0;
+  if (canvas) {
+    generatePlatforms();
+  }
+
+  const seedElement = document.getElementById("seed");
+  if (seedElement) {
+    seedElement.value = it;
+  }
+  window.location.hash = `#${it}`;
+}
 
 function main() {
-    canvas = document.getElementById("canvas");
-    canvas.height = window.innerHeight - 170;
-    context = canvas.getContext("2d");
+  canvas = document.getElementById("canvas");
+  canvas.height = window.innerHeight - 170;
+  context = canvas.getContext("2d");
 
-    objects.push(
-	// Walls
-	new Platform(0, 0, 0, Infinity),
-	new Platform(canvas.width, 0, 0, Infinity),
-	// Ground
-	new Platform(0, 0, canvas.width, 10),
-    );
+  document
+    .getElementById("seed")
+    .addEventListener("input", (event) => setSeed(event.target.value));
+  window.addEventListener("hashchange", () =>
+    setSeed(window.location.hash.substring(1))
+  );
+  setSeed(window.location.hash.substring(1) || DEFAULT_HASH);
 
-    // Place coordinate system origin in bottom left corner
-    context.scale(1, -1);
-    context.translate(0, -canvas.height);
+  playerSprite = document.getElementById("playerSprite");
 
-    document.addEventListener("keydown", event => {
-	if (event.code === "Space") {
-	    if (jumps < JUMPS) {
-		jumps++;
-		player.v.y = JUMP_VELOCITY;
-	    }
-	}
+  addDefaultPlatforms();
 
-	if (event.code === "KeyD") {
-	    player.v.x = WALK_VELOCITY;
-	    keyDAPressed = true;
-	} else if (event.code === "KeyA") {
-	    player.v.x = -WALK_VELOCITY;
-	    keyDAPressed = true;
-	}
-    });
-    document.addEventListener("keyup", event => {
-	if (event.code === "KeyD" || event.code === "KeyA")
-	    keyDAPressed = false;
-    });
+  // Place coordinate system origin in bottom left corner
+  context.scale(1, -1);
+  context.translate(0, -canvas.height);
 
-    loop();
+  document.addEventListener("keydown", (event) => {
+    if (event.code === "Space" && jumps < JUMPS) {
+      jumps++;
+      player.v.y = JUMP_VELOCITY;
+    }
+
+    if (event.code === "KeyA") {
+      walking = Direction.Left;
+    } else if (event.code === "KeyD") {
+      walking = Direction.Right;
+    }
+  });
+  document.addEventListener("keyup", (event) => {
+    if (event.code === "KeyD" || event.code === "KeyA") {
+      walking = null;
+    }
+  });
+
+  loop();
 }
-
-let lastTime;
-let colliding = false
-let onGround = false;
-
-function loop(time) {
-    const dt = (time - lastTime) / 1e2;
-    lastTime = time;
-
-    window.requestAnimationFrame(loop);
-
-    if (Number.isNaN(dt)) {
-	return;
-    }
-
-    if (!canvas || !context) {
-	return;
-    }
-
-    context.clearRect(0, scrollY, canvas.width, canvas.height);
-
-    player.update(dt, colliding, onGround);
-
-    onGround = false;
-    let priorityNotOnGround = false;
-
-    const ptl = player.pos; // player top left
-    const pbr = player.pos.add(player.size); // player bottom right
-    for (const object of objects) {
-	const otl = object.pos; // object top left
-	const obr = object.pos.add(object.size); // object bottom right
-
-	// Collision detection
-	if (
-	    pbr.x >= otl.x &&
-	    ptl.x <= obr.x &&
-	    pbr.y >= otl.y &&
-	    ptl.y <= obr.y
-	) {
-	    colliding = true;
-
-	    let overlap = new Vec2(Infinity, Infinity);
-	    if (player.pos.x < object.pos.x) {
-		overlap.x = player.pos.x + player.size.x - object.pos.x, player.size.x, object.size.x;
-	    } else if (player.pos.x + player.size.x > object.pos.x + object.size.x) {
-		overlap.x = object.pos.x + object.size.x - player.pos.x;
-	    }
-	    if (player.pos.y < object.pos.y) {
-		overlap.y = player.pos.y + player.size.y - object.pos.y;
-	    } else if (player.pos.y + player.size.y > object.pos.y + object.size.y) {
-		overlap.y = object.pos.y + object.size.y - player.pos.y;
-	    }
-	    overlap.x = Math.min(overlap.x, player.size.x, object.size.x);
-	    overlap.y = Math.min(overlap.y, player.size.y, object.size.y);
-
-	    if (Math.abs(overlap.y) < Math.abs(overlap.x)) {
-		if (player.pos.y + player.size.y / 2 > object.pos.y + object.size.y / 2) {
-		    // ground
-		    player.pos.y = object.pos.y + object.size.y;
-		    onGround = true;
-		} else {
-		    // ceiling
-		    player.pos.y = object.pos.y - player.size.y;
-		    priorityNotOnGround = true;
-		}
-		player.v.y = 0;
-	    } else {
-		// wall
-		if (player.pos.x + player.size.x / 2 > object.pos.x + object.size.x / 2) {
-		    player.pos.x = object.pos.x + object.size.x;
-		} else {
-		    player.pos.x = object.pos.x - player.size.x;
-		}
-		// player.v.x = 0;
-		// onGround = true;
-	    }
-	} else {
-	    colliding = false;
-	}
-
-	// Draw object
-	object.paint(context);
-    }
-
-    if (priorityNotOnGround)
-	onGround = false;
-
-    const newScore = Math.floor(player.pos.y / 250);
-    if (onGround) {
-	jumps = 0;
-
-	score = newScore;
-	if (score > highscore)
-	    setHighscore(score);
-    } else if (newScore < score) {
-	score = newScore;
-    }
-
-    const fontSize = 20;
-    context.save();
-    context.translate(0, canvas.height + scrollY);
-    context.scale(1, -1);
-    context.font = `${fontSize}px 'Press Start 2P'`;
-    context.fillText(`Score: ${score}`, 20, 20 + fontSize);
-    context.fillText(`Highscore: ${highscore}`, 20, 20 + fontSize + (fontSize + 10) * 1);
-    context.restore();
-
-    while (generatedUntilY - player.pos.y < 2 * canvas.height) {
-	const w = 100 + Math.random() * 100;
-	const h = 10;
-	const x = (canvas.width - w) * Math.random();
-	const y = generatedUntilY + 250;
-	generatedUntilY += 250;
-	objects.push(new Platform(x, y, w, h));
-    }
-
-    player.paint(context);
-}
-
 window.addEventListener("load", main);
+
+let i = 0,
+  fps = 0;
+function loop(time) {
+  window.requestAnimationFrame(loop);
+  // Skip first frame
+  if (!time) {
+    return;
+  }
+
+  const dt = (time - lastTime) / 1e2;
+  lastTime = time;
+
+  if (!canvas || !context) {
+    console.error("canvas or context are falsy");
+    return;
+  }
+
+  context.clearRect(0, scrollPosition, canvas.width, canvas.height);
+
+  if (_SHOW_DEBUG_INFO) {
+    if (i < 10) {
+      i += 1;
+    } else {
+      i = 0;
+      fps = (10 / dt).toFixed(1);
+    }
+    context.save();
+    context.translate(0, canvas.height + scrollPosition);
+    context.scale(1, -1);
+    context.fillStyle = "lightgreen";
+    context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
+    context.textAlign = "right";
+    context.fillText(`${fps}`, canvas.width - 20, 20 + _FONT_SIZE);
+    context.restore();
+  }
+
+  player.update(dt, colliding);
+  const playerCenter = player.r.add(player.size.mul(0.5));
+
+  let onGround = false;
+  let noCollisions = true;
+  for (const object of objects) {
+    if (player.collidesWith(object)) {
+      noCollisions = false;
+      const objectCenter = object.r.add(object.size.mul(0.5));
+      const overlap = player.overlapWith(object).abs();
+      if (overlap.y < overlap.x) {
+        if (playerCenter.y > objectCenter.y) {
+          // Place player's top edge at object's bottom edge
+          player.r.y = object.r.y + object.size.y;
+          onGround = true;
+        } else {
+          // Place player's bottom edge at object's top edge
+          player.r.y = object.r.y - player.size.y;
+          colliding = Colliding.Ceiling;
+        }
+        player.v.y = 0;
+      } else {
+        if (playerCenter.x > objectCenter.x) {
+          // Place player's left edge at object's right edge
+          player.r.x = object.r.x + object.size.x;
+        } else {
+          // Place player's right edge at object's left edge
+          player.r.x = object.r.x - player.size.x;
+        }
+        colliding = Colliding.Wall;
+      }
+    }
+
+    object.paint(context);
+  }
+  if (onGround) {
+    colliding = Colliding.Ground;
+  }
+  if (noCollisions) {
+    colliding = null;
+  }
+
+  player.paint(context);
+
+  const newScore = Math.floor(player.r.y / 250);
+  if (colliding === Colliding.Ground) {
+    jumps = 0;
+    score = newScore;
+    if (score > highscore) {
+      highscore = score;
+      localStorage.setItem("highscore", highscore);
+    }
+  } else if (newScore < score) {
+    score = newScore;
+  }
+
+  context.save();
+  context.translate(0, canvas.height + scrollPosition);
+  context.scale(1, -1);
+  context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
+  context.fillText(`Score: ${score}`, 20, 20 + _FONT_SIZE);
+  context.fillText(
+    `Highscore: ${highscore}`,
+    20,
+    20 + _FONT_SIZE + (_FONT_SIZE + 10) * 1
+  );
+  context.restore();
+
+  generatePlatforms();
+
+  player.paint(context);
+}
+
+function addDefaultPlatforms() {
+  objects.push(
+    // Walls
+    new Platform(0, 0, 0, Infinity),
+    new Platform(canvas.width, 0, 0, Infinity),
+    // Ground
+    new Platform(0, 0, canvas.width, 10)
+  );
+}
+
+function generatePlatforms() {
+  while (generatedUntil - player.r.y < 2 * canvas.height) {
+    const w = 100 + rand() * 100;
+    const h = 10;
+    const x = (canvas.width - w) * rand();
+    const y = generatedUntil + 250;
+    generatedUntil = y;
+    objects.push(new Platform(x, y, w, h));
+  }
+}
