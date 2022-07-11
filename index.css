@@ -9,6 +9,16 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    animation: fadeIn 3s;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 #seed {
@@ -20,12 +30,12 @@ body {
     position: absolute;
     text-align: center;
     font-size: 3rem;
-    /* animation: showup 2s cubic-bezier(1, 0, 0.5, 1); */
+    animation: showup 3s cubic-bezier(1, 0, 0.5, 1);
 }
 
 @keyframes showup {
     from {
-	transform: scale(200%) translateY(300%);
+	    transform: scale(200%) translateY(300%);
     }
 }
 

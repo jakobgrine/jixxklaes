@@ -305,7 +305,7 @@ function main() {
 
   loop();
 }
-window.addEventListener("load", main);
+window.addEventListener("load", () => setTimeout(main, 3000));
 
 let i = 0,
   fps = 0;
