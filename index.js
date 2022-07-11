@@ -60,8 +60,8 @@ let jumps = 0;
 let colliding, walking;
 let scrollPosition = 0;
 let generatedUntil = 0;
-let score = 0,
-  highscore = 0;
+let score = 0;
+let highscore = localStorage.getItem("highscore") || 0;
 
 const Colliding = {
   Ceiling: "Ceiling",
