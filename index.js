@@ -3,6 +3,7 @@ const GRAVITY = -40;
 const GROUND_FRICTION = 4;
 const WALK_VELOCITY = 40;
 const JUMP_VELOCITY = 120;
+const WALL_SLIDE_VELOCITY = -30;
 const MAX_FALL_VELOCITY = -120;
 const TOP_PADDING = 200;
 const BOTTOM_PADDING = 200;
@@ -178,8 +179,11 @@ class GameObject {
 }
 
 class Platform extends GameObject {
-  constructor(x, y, w, h) {
+  notJumpable; // only works on walls
+
+  constructor(x, y, w, h, notJumpable) {
     super(x, y, w, h);
+	this.notJumpable = notJumpable || false;
   }
   
 	paint(context) {
@@ -221,9 +225,11 @@ class Player extends GameObject {
       this.v = this.v.add(this.a.mul(dt));
     }
 
-    // Stop at walls
     if (this.colliding === Colliding.Wall) {
+      // Stop at walls
       this.v.x = 0;
+	  // Slide down walls
+	  this.v.y = WALL_SLIDE_VELOCITY;
     }
 
     if (this.walking === Direction.Right) {
@@ -354,7 +360,7 @@ function main() {
   context.translate(0, -canvas.height);
 
   document.addEventListener("keydown", (event) => {
-    if (event.code === "Space" && jumps < JUMPS) {
+    if (event.code === "Space" && jumps < JUMPS && player.colliding !== Colliding.Wall) {
       jumps++;
       player.v.y = JUMP_VELOCITY;
     }
@@ -436,6 +442,9 @@ function loop(time) {
           player.r.x = object.r.x - player.size.x;
         }
         player.colliding = Colliding.Wall;
+		if (!object.notJumpable) {
+			jumps = 0;
+		}
       }
     }
 
@@ -474,10 +483,10 @@ function loop(time) {
 function addDefaultPlatforms() {
   objects.push(
     // Walls
-    new Platform(0, 0, 0, Infinity),
-    new Platform(canvas.width, 0, 0, Infinity),
+    new Platform(0, 0, 0, Infinity, true),
+    new Platform(canvas.width, 0, 0, Infinity, true),
     // Ground
-    new Platform(0, 0, canvas.width, PLATFORM_HEIGHT)
+    new Platform(0, 0, canvas.width, PLATFORM_HEIGHT),
   );
 }
 
