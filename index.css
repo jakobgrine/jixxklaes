@@ -9,6 +9,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+	overflow-x: hidden;
 }
 
 #seed {
@@ -25,11 +26,21 @@ body {
 
 @keyframes showup {
     from {
-	transform: scale(200%) translateY(300%);
+		transform: scale(200%) translateY(300%);
     }
 }
 
 #canvas {
     margin-top: 8rem;
     border: 1px solid white;
+    animation: fadeIn 2s cubic-bezier(1, 0, 0.5, 1);
+}
+
+@keyframes fadeIn {
+	from {
+        opacity: 0;
+	}
+	to {
+        opacity: 1;
+	}
 }

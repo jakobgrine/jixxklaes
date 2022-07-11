@@ -7,9 +7,36 @@ const MAX_FALL_VELOCITY = -120;
 const TOP_PADDING = 200;
 const BOTTOM_PADDING = 200;
 const DEFAULT_HASH = "Jixxklääs";
+const PLATFORM_HEIGHT = 30;
 
 let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
+
+const Sprites = {
+	Walking: [
+		"walking_1.png",
+		"walking_2.png",
+		"walking_3.png",
+	],
+	Jumping: [
+		"jumping.png",
+	],
+	Still: [
+		"still.png",
+	],
+	Falling: [
+		"falling.png",
+	],
+};
+for (const key of Object.keys(Sprites)) {
+	for (let i = 0; i < Sprites[key].length; i++) {
+		const img = new Image();
+		img.src = "sprite/" + Sprites[key][i];
+		Sprites[key][i] = img;
+	}
+}
+const groundSprite = new Image();
+groundSprite.src = "ground.png";
 
 // See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
 function cyrb128(str) {
@@ -57,11 +84,13 @@ let playerSprite;
 let canvas, context;
 let lastTime = 0;
 let jumps = 0;
-let colliding, walking;
 let scrollPosition = 0;
 let generatedUntil = 0;
 let score = 0;
 let highscore = localStorage.getItem("highscore") || 0;
+
+let walkingAnimationState = 0;
+let walkingAnimationCounter = 0;
 
 const Colliding = {
   Ceiling: "Ceiling",
@@ -152,6 +181,26 @@ class Platform extends GameObject {
   constructor(x, y, w, h) {
     super(x, y, w, h);
   }
+  
+	paint(context) {
+		const spriteSize = PLATFORM_HEIGHT;
+		for (let col = 0; col < this.size.x / spriteSize; col++) {
+			for (let row = 0; row < this.size.y / spriteSize; row++) {
+				context.drawImage(groundSprite,
+					this.r.x + col * spriteSize, this.r.y + row * spriteSize,
+					spriteSize, spriteSize,
+				);
+			}
+		}
+
+		if (_SHOW_DEBUG_INFO) {
+			context.strokeStyle = "red";
+			context.strokeRect(
+				this.r.x, this.r.y,
+				this.size.x, this.size.y,
+			);
+		}
+	}
 }
 
 class Player extends GameObject {
@@ -160,32 +209,32 @@ class Player extends GameObject {
 
   constructor(x, y, h) {
     // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
-    const aspectRatio = 283 / 700;
+    const aspectRatio = 250 / 270;
     super(x, y, aspectRatio * h, h);
 
     this.a = new Vec2(0, GRAVITY);
     this.v = new Vec2(0, 0);
   }
 
-  update(dt, colliding) {
-    if (colliding !== Colliding.Ground) {
+  update(dt) {
+    if (this.colliding !== Colliding.Ground) {
       this.v = this.v.add(this.a.mul(dt));
     }
 
     // Stop at walls
-    if (colliding === Colliding.Wall) {
+    if (this.colliding === Colliding.Wall) {
       this.v.x = 0;
     }
 
-    if (walking === Direction.Right) {
+    if (this.walking === Direction.Right) {
       this.v.x = WALK_VELOCITY;
-    } else if (walking === Direction.Left) {
+    } else if (this.walking === Direction.Left) {
       this.v.x = -WALK_VELOCITY;
     }
 
     // Slow down when on ground
     const sign = this.v.x > 0 ? 1 : -1;
-    if (this.v.x !== 0 && colliding === Colliding.Ground && !walking) {
+    if (this.v.x !== 0 && this.colliding === Colliding.Ground && !this.walking) {
       this.v.x -= sign * GROUND_FRICTION;
     }
 
@@ -226,20 +275,41 @@ class Player extends GameObject {
 
     context.save();
     context.translate(this.center.x, this.center.y);
-    context.scale(this.direction === Direction.Left ? 1 : -1, -1);
+    context.scale(this.direction === Direction.Left ? -1 : 1, -1);
     context.translate(-this.center.x, -this.center.y);
-    context.drawImage(
-      playerSprite,
-      this.r.x,
-      this.r.y,
-      this.size.x,
-      this.size.y
-    );
+
+	let sprite = Sprites.Still[0];
+	if (this.colliding === Colliding.Ground && this.walking) {
+		sprite = Sprites.Walking[walkingAnimationState];
+		walkingAnimationCounter++;
+		if (walkingAnimationCounter > 10) {
+			walkingAnimationCounter = 0;
+			walkingAnimationState++;
+			if (walkingAnimationState >= 3) {
+				walkingAnimationState = 0;
+			}
+		}
+	}
+	if (!this.colliding || this.colliding === Colliding.Wall) {
+		if (this.v.y > 0) {
+			sprite = Sprites.Jumping[0];
+		} else {
+			sprite = Sprites.Falling[0];
+		}
+	}
+	context.drawImage(
+		sprite,
+		this.r.x,
+		this.r.y,
+		this.size.x,
+		this.size.y,
+	);
+
     context.restore();
   }
 }
 
-const player = new Player(250, 200, 100);
+const player = new Player(250, 200, 70);
 let objects = [];
 
 let seed, rand;
@@ -277,8 +347,6 @@ function main() {
   );
   setSeed(window.location.hash.substring(1) || DEFAULT_HASH);
 
-  playerSprite = document.getElementById("playerSprite");
-
   addDefaultPlatforms();
 
   // Place coordinate system origin in bottom left corner
@@ -292,14 +360,14 @@ function main() {
     }
 
     if (event.code === "KeyA") {
-      walking = Direction.Left;
+      player.walking = Direction.Left;
     } else if (event.code === "KeyD") {
-      walking = Direction.Right;
+      player.walking = Direction.Right;
     }
   });
   document.addEventListener("keyup", (event) => {
     if (event.code === "KeyD" || event.code === "KeyA") {
-      walking = null;
+      player.walking = null;
     }
   });
 
@@ -333,17 +401,12 @@ function loop(time) {
       i = 0;
       fps = (10 / dt).toFixed(1);
     }
-    context.save();
-    context.translate(0, canvas.height + scrollPosition);
-    context.scale(1, -1);
     context.fillStyle = "lightgreen";
-    context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
     context.textAlign = "right";
-    context.fillText(`${fps}`, canvas.width - 20, 20 + _FONT_SIZE);
-    context.restore();
+	drawText(fps, canvas.width - 20, 20);
   }
 
-  player.update(dt, colliding);
+  player.update(dt);
   const playerCenter = player.r.add(player.size.mul(0.5));
 
   let onGround = false;
@@ -361,7 +424,7 @@ function loop(time) {
         } else {
           // Place player's bottom edge at object's top edge
           player.r.y = object.r.y - player.size.y;
-          colliding = Colliding.Ceiling;
+          player.colliding = Colliding.Ceiling;
         }
         player.v.y = 0;
       } else {
@@ -372,23 +435,23 @@ function loop(time) {
           // Place player's right edge at object's left edge
           player.r.x = object.r.x - player.size.x;
         }
-        colliding = Colliding.Wall;
+        player.colliding = Colliding.Wall;
       }
     }
 
     object.paint(context);
   }
   if (onGround) {
-    colliding = Colliding.Ground;
+    player.colliding = Colliding.Ground;
   }
   if (noCollisions) {
-    colliding = null;
+    player.colliding = null;
   }
 
   player.paint(context);
 
   const newScore = Math.floor(player.r.y / 250);
-  if (colliding === Colliding.Ground) {
+  if (player.colliding === Colliding.Ground) {
     jumps = 0;
     score = newScore;
     if (score > highscore) {
@@ -399,17 +462,9 @@ function loop(time) {
     score = newScore;
   }
 
-  context.save();
-  context.translate(0, canvas.height + scrollPosition);
-  context.scale(1, -1);
-  context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
-  context.fillText(`Score: ${score}`, 20, 20 + _FONT_SIZE);
-  context.fillText(
-    `Highscore: ${highscore}`,
-    20,
-    20 + _FONT_SIZE + (_FONT_SIZE + 10) * 1
-  );
-  context.restore();
+  context.textAlign = "left";
+  context.fillStyle = "white";
+  drawText(`Score: ${score}\nHighscore: ${highscore}`, 20, 20);
 
   generatePlatforms();
 
@@ -422,17 +477,30 @@ function addDefaultPlatforms() {
     new Platform(0, 0, 0, Infinity),
     new Platform(canvas.width, 0, 0, Infinity),
     // Ground
-    new Platform(0, 0, canvas.width, 10)
+    new Platform(0, 0, canvas.width, PLATFORM_HEIGHT)
   );
 }
 
 function generatePlatforms() {
   while (generatedUntil - player.r.y < 2 * canvas.height) {
-    const w = 100 + rand() * 100;
-    const h = 10;
+    const w = Math.round((100 + rand() * 100) / PLATFORM_HEIGHT) * PLATFORM_HEIGHT;
+    const h = PLATFORM_HEIGHT;
     const x = (canvas.width - w) * rand();
     const y = generatedUntil + 250;
     generatedUntil = y;
     objects.push(new Platform(x, y, w, h));
   }
+}
+
+function drawText(text, x, y) {
+	context.save();
+	context.translate(0, canvas.height + scrollPosition);
+	context.scale(1, -1);
+
+	const lines = text.split("\n");
+	for (let i = 0; i < lines.length; i++) {
+		context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
+		context.fillText(lines[i], x, y + _FONT_SIZE + (_FONT_SIZE + 10) * i);
+	}
+	context.restore();
 }
