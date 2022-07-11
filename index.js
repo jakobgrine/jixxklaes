@@ -58,7 +58,7 @@ let canvas, context;
 let lastTime = 0;
 let jumps = 0;
 let colliding, walking;
-let scrollPosition = 0;
+let scrollPosition = 220;
 let generatedUntil = 0;
 let score = 0;
 let highscore = localStorage.getItem("highscore") || 0;
@@ -283,7 +283,7 @@ function main() {
 
   // Place coordinate system origin in bottom left corner
   context.scale(1, -1);
-  context.translate(0, -canvas.height);
+  context.translate(0, -canvas.height + scrollPosition);
 
   document.addEventListener("keydown", (event) => {
     if (event.code === "Space" && jumps < JUMPS) {
