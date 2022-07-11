@@ -58,7 +58,7 @@ let canvas, context;
 let lastTime = 0;
 let jumps = 0;
 let colliding, walking;
-let scrollPosition = 220;
+let scrollPosition = -220;
 let generatedUntil = 0;
 let score = 0;
 let highscore = localStorage.getItem("highscore") || 0;
