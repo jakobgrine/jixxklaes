@@ -283,7 +283,7 @@ function main() {
 
   // Place coordinate system origin in bottom left corner
   context.scale(1, -1);
-  context.translate(0, -canvas.height + scrollPosition);
+  context.translate(0, -canvas.height - scrollPosition);
 
   document.addEventListener("keydown", (event) => {
     if (event.code === "Space" && jumps < JUMPS) {
