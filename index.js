@@ -305,12 +305,19 @@ function main() {
 
   loop();
 }
-window.addEventListener("load", () => setTimeout(main, 3000));
+window.addEventListener("load", main);
 
-let i = 0,
-  fps = 0;
+let i = 0;
+let fps = 0;
+let startupAnimation = 60 * 3;
 function loop(time) {
   window.requestAnimationFrame(loop);
+
+  if (startupAnimation > 0) {
+    startupAnimation -= 1;
+    return;
+  }
+
   // Skip first frame
   if (!time) {
     return;
