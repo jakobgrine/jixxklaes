@@ -239,7 +239,7 @@ class Player extends GameObject {
   }
 }
 
-const player = new Player(250, 100, 100);
+const player = new Player(250, 200, 100);
 let objects = [];
 
 let seed, rand;
