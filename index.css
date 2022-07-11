@@ -20,7 +20,7 @@ body {
     position: absolute;
     text-align: center;
     font-size: 3rem;
-    /* animation: showup 2s cubic-bezier(1, 0, 0.5, 1); */
+    animation: showup 2s cubic-bezier(1, 0, 0.5, 1);
 }
 
 @keyframes showup {
