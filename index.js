@@ -58,7 +58,7 @@ let canvas, context;
 let lastTime = 0;
 let jumps = 0;
 let colliding, walking;
-let scrollPosition = -220;
+let scrollPosition = 0;
 let generatedUntil = 0;
 let score = 0;
 let highscore = localStorage.getItem("highscore") || 0;
@@ -239,7 +239,7 @@ class Player extends GameObject {
   }
 }
 
-const player = new Player(250, 200, 100);
+const player = new Player(250, 500, 100);
 let objects = [];
 
 let seed, rand;
