@@ -14,27 +14,27 @@ let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
 
 const Sprites = {
-	Walking: [
-		"walking_1.png",
-		"walking_2.png",
-		"walking_3.png",
-	],
-	Jumping: [
-		"jumping.png",
-	],
-	Still: [
-		"still.png",
-	],
-	Falling: [
-		"falling.png",
-	],
+  Walking: [
+    "walking_1.png",
+    "walking_2.png",
+    "walking_3.png",
+  ],
+  Jumping: [
+    "jumping.png",
+  ],
+  Still: [
+    "still.png",
+  ],
+  Falling: [
+    "falling.png",
+  ],
 };
 for (const key of Object.keys(Sprites)) {
-	for (let i = 0; i < Sprites[key].length; i++) {
-		const img = new Image();
-		img.src = "sprite/" + Sprites[key][i];
-		Sprites[key][i] = img;
-	}
+  for (let i = 0; i < Sprites[key].length; i++) {
+    const img = new Image();
+    img.src = "sprite/" + Sprites[key][i];
+    Sprites[key][i] = img;
+  }
 }
 const groundSprite = new Image();
 groundSprite.src = "ground.png";
@@ -183,28 +183,28 @@ class Platform extends GameObject {
 
   constructor(x, y, w, h, notJumpable) {
     super(x, y, w, h);
-	this.notJumpable = notJumpable || false;
+    this.notJumpable = notJumpable || false;
   }
-  
-	paint(context) {
-		const spriteSize = PLATFORM_HEIGHT;
-		for (let col = 0; col < this.size.x / spriteSize; col++) {
-			for (let row = 0; row < this.size.y / spriteSize; row++) {
-				context.drawImage(groundSprite,
-					this.r.x + col * spriteSize, this.r.y + row * spriteSize,
-					spriteSize, spriteSize,
-				);
-			}
-		}
 
-		if (_SHOW_DEBUG_INFO) {
-			context.strokeStyle = "red";
-			context.strokeRect(
-				this.r.x, this.r.y,
-				this.size.x, this.size.y,
-			);
-		}
-	}
+  paint(context) {
+    const spriteSize = PLATFORM_HEIGHT;
+    for (let col = 0; col < this.size.x / spriteSize; col++) {
+      for (let row = 0; row < this.size.y / spriteSize; row++) {
+        context.drawImage(groundSprite,
+          this.r.x + col * spriteSize, this.r.y + row * spriteSize,
+          spriteSize, spriteSize,
+        );
+      }
+    }
+
+    if (_SHOW_DEBUG_INFO) {
+      context.strokeStyle = "red";
+      context.strokeRect(
+        this.r.x, this.r.y,
+        this.size.x, this.size.y,
+      );
+    }
+  }
 }
 
 class Player extends GameObject {
@@ -212,12 +212,12 @@ class Player extends GameObject {
   v;
 
   constructor(x, y, h) {
-    // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
-    const aspectRatio = 250 / 270;
-    super(x, y, aspectRatio * h, h);
+  // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
+  const aspectRatio = 250 / 270;
+  super(x, y, aspectRatio * h, h);
 
-    this.a = new Vec2(0, GRAVITY);
-    this.v = new Vec2(0, 0);
+  this.a = new Vec2(0, GRAVITY);
+  this.v = new Vec2(0, 0);
   }
 
   update(dt) {
@@ -228,8 +228,11 @@ class Player extends GameObject {
     if (this.colliding === Colliding.Wall) {
       // Stop at walls
       this.v.x = 0;
-	  // Slide down walls
-	  this.v.y = WALL_SLIDE_VELOCITY;
+      // Slide down walls
+      // TODO: only when facing to the wall
+      if (this.direction === this.collisionDirection) {
+        this.v.y = WALL_SLIDE_VELOCITY;
+      }
     }
 
     if (this.walking === Direction.Right) {
@@ -259,7 +262,7 @@ class Player extends GameObject {
     this.r = this.r.add(this.v.mul(dt));
 
     const topDistance =
-      TOP_PADDING - (canvas.height - (this.r.y + this.size.y - scrollPosition));
+    TOP_PADDING - (canvas.height - (this.r.y + this.size.y - scrollPosition));
     if (topDistance > 0) {
       // Move viewport up
       scrollPosition += topDistance;
@@ -284,32 +287,32 @@ class Player extends GameObject {
     context.scale(this.direction === Direction.Left ? -1 : 1, -1);
     context.translate(-this.center.x, -this.center.y);
 
-	let sprite = Sprites.Still[0];
-	if (this.colliding === Colliding.Ground && this.walking) {
-		sprite = Sprites.Walking[walkingAnimationState];
-		walkingAnimationCounter++;
-		if (walkingAnimationCounter > 10) {
-			walkingAnimationCounter = 0;
-			walkingAnimationState++;
-			if (walkingAnimationState >= 3) {
-				walkingAnimationState = 0;
-			}
-		}
-	}
-	if (!this.colliding || this.colliding === Colliding.Wall) {
-		if (this.v.y > 0) {
-			sprite = Sprites.Jumping[0];
-		} else {
-			sprite = Sprites.Falling[0];
-		}
-	}
-	context.drawImage(
-		sprite,
-		this.r.x,
-		this.r.y,
-		this.size.x,
-		this.size.y,
-	);
+    let sprite = Sprites.Still[0];
+    if (this.colliding === Colliding.Ground && this.walking) {
+      sprite = Sprites.Walking[walkingAnimationState];
+      walkingAnimationCounter++;
+      if (walkingAnimationCounter > 10) {
+        walkingAnimationCounter = 0;
+        walkingAnimationState++;
+        if (walkingAnimationState >= 3) {
+          walkingAnimationState = 0;
+        }
+      }
+    }
+    if (!this.colliding || this.colliding === Colliding.Wall) {
+      if (this.v.y > 0) {
+        sprite = Sprites.Jumping[0];
+      } else {
+        sprite = Sprites.Falling[0];
+      }
+    }
+    context.drawImage(
+      sprite,
+      this.r.x,
+      this.r.y,
+      this.size.x,
+      this.size.y,
+    );
 
     context.restore();
   }
@@ -409,7 +412,7 @@ function loop(time) {
     }
     context.fillStyle = "lightgreen";
     context.textAlign = "right";
-	drawText(fps, canvas.width - 20, 20);
+    drawText(fps, canvas.width - 20, 20);
   }
 
   player.update(dt);
@@ -442,9 +445,9 @@ function loop(time) {
           player.r.x = object.r.x - player.size.x;
         }
         player.colliding = Colliding.Wall;
-		if (!object.notJumpable) {
-			jumps = 0;
-		}
+        if (!object.notJumpable) {
+          jumps = 0;
+        }
       }
     }
 
@@ -502,14 +505,14 @@ function generatePlatforms() {
 }
 
 function drawText(text, x, y) {
-	context.save();
-	context.translate(0, canvas.height + scrollPosition);
-	context.scale(1, -1);
+  context.save();
+  context.translate(0, canvas.height + scrollPosition);
+  context.scale(1, -1);
 
-	const lines = text.split("\n");
-	for (let i = 0; i < lines.length; i++) {
-		context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
-		context.fillText(lines[i], x, y + _FONT_SIZE + (_FONT_SIZE + 10) * i);
-	}
-	context.restore();
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
+    context.fillText(lines[i], x, y + _FONT_SIZE + (_FONT_SIZE + 10) * i);
+  }
+  context.restore();
 }
