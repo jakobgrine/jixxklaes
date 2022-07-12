@@ -3,13 +3,32 @@
     color: white;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
-    margin: 0;
     background: black;
+    position: relative;
+    margin: 0;
+    background: transparent;
     display: flex;
     flex-direction: column;
     align-items: center;
-	overflow-x: hidden;
+    overflow-x: hidden;
+}
+
+#background {
+    z-index: -1;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("sprite/background.png");
+    background-position: bottom;
+    background-size: contain;
+    opacity: 0.8;
 }
 
 #seed {
