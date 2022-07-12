@@ -13,12 +13,6 @@ const PLATFORM_HEIGHT = 30;
 let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
 
-function loadImage(filename) {
-  const image = new Image();
-  image.src = filename;
-  return image;
-}
-
 const Sprites = {
   Still: "still.png",
   Walking: [
@@ -28,17 +22,23 @@ const Sprites = {
   ],
   Jumping: "jumping.png",
   Falling: "falling.png",
+  Ground: "ground.png",
 };
+
+function loadImage(filename) {
+  const image = new Image();
+  image.src = filename;
+  return image;
+}
 for (const key of Object.keys(Sprites)) {
   if (Array.isArray(Sprites[key])) {
     for (let i = 0; i < Sprites[key].length; i++) {
-        Sprites[key][i] = loadImage("sprite/" + Sprites[key][i]);
+      Sprites[key][i] = loadImage("sprite/" + Sprites[key][i]);
     }
   } else {
     Sprites[key] = loadImage("sprite/" + Sprites[key]);
   }
 }
-const groundSprite = loadImage("sprite/ground.png");
 
 // See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
 function cyrb128(str) {
@@ -144,11 +144,6 @@ class GameObject {
     return this.r.add(this.size.mul(0.5));
   }
 
-  paint(context) {
-    context.fillStyle = "white";
-    context.fillRect(this.r.x, this.r.y, this.size.x, this.size.y);
-  }
-
   collidesWith(other) {
     return (
       this.bottomRight.x >= other.topLeft.x &&
@@ -191,7 +186,7 @@ class Platform extends GameObject {
     const spriteSize = PLATFORM_HEIGHT;
     for (let col = 0; col < this.size.x / spriteSize; col++) {
       for (let row = 0; row < this.size.y / spriteSize; row++) {
-        context.drawImage(groundSprite,
+        context.drawImage(Sprites.Ground,
           this.r.x + col * spriteSize, this.r.y + row * spriteSize,
           spriteSize, spriteSize,
         );
@@ -208,17 +203,22 @@ class Platform extends GameObject {
   }
 }
 
+//let jumped = false;
+
 class Player extends GameObject {
   a;
   v;
+  colliding;
+  walking;
+  direction;
 
   constructor(x, y, h) {
-  // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
-  const aspectRatio = 250 / 270;
-  super(x, y, aspectRatio * h, h);
+    // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
+    const aspectRatio = 250 / 270;
+    super(x, y, aspectRatio * h, h);
 
-  this.a = new Vec2(0, GRAVITY);
-  this.v = new Vec2(0, 0);
+    this.a = new Vec2(0, GRAVITY);
+    this.v = new Vec2(0, 0);
   }
 
   update(dt) {
@@ -226,15 +226,17 @@ class Player extends GameObject {
       this.v = this.v.add(this.a.mul(dt));
     }
 
-    if (this.colliding === Colliding.Wall) {
+    if (this.colliding === Colliding.Wall && !jumped) {
       // Stop at walls
       this.v.x = 0;
       // Slide down walls
-      // TODO: only when facing to the wall
-      if (this.direction === this.collisionDirection) {
+      /*if (this.direction === this.collisionDirection) {
         this.v.y = WALL_SLIDE_VELOCITY;
-      }
+      }*/
     }
+    /*if (jumped) {
+      jumped = false;
+    }*/
 
     if (this.walking === Direction.Right) {
       this.v.x = WALK_VELOCITY;
@@ -263,7 +265,7 @@ class Player extends GameObject {
     this.r = this.r.add(this.v.mul(dt));
 
     const topDistance =
-    TOP_PADDING - (canvas.height - (this.r.y + this.size.y - scrollPosition));
+      TOP_PADDING - (canvas.height - (this.r.y + this.size.y - scrollPosition));
     if (topDistance > 0) {
       // Move viewport up
       scrollPosition += topDistance;
@@ -320,7 +322,36 @@ class Player extends GameObject {
 }
 
 const player = new Player(250, 200, 70);
-let objects = [];
+let platforms = [];
+let webs = [];
+
+class Web extends GameObject {
+  v;
+
+  constructor(x, y, r, direction) {
+    super(x, y, r, r);
+    const sign = this.direction === Direction.Left
+      ? -1
+      : this.direction === Direction.Right
+      ? 1
+      : 0;
+    this.v = new Vec2(
+      sign * 20 + player.v.x,
+      30 + player.v.y,
+    );
+  }
+
+  paint(context) {
+    context.beginPath();
+    context.arc(this.center.x, this.center.y, this.size.x, 0, 2 * Math.PI);
+    context.fillStyle = "white";
+    context.fill();
+  }
+
+  update(dt) {
+    this.r = this.r.add(this.v.mul(dt));
+  }
+}
 
 let seed, rand;
 function setSeed(it) {
@@ -329,7 +360,7 @@ function setSeed(it) {
   seed = cyrb128(it);
   rand = sfc32(seed[0], seed[1], seed[2], seed[3]);
 
-  objects = [];
+  platforms = [];
   addDefaultPlatforms();
   generatedUntil = 0;
   if (canvas) {
@@ -364,7 +395,13 @@ function main() {
   context.translate(0, -canvas.height);
 
   document.addEventListener("keydown", (event) => {
-    if (event.code === "Space" && jumps < JUMPS && player.colliding !== Colliding.Wall) {
+    if (event.code === "Space" && jumps < JUMPS) {
+      /*if (player.colliding === Colliding.Wall) {
+        const dir = player.collisionDirection === Direction.Left ? 1 : -1;
+        player.v.x = dir * WALK_VELOCITY;
+        jumped = true;
+        player.r.x += dir;
+      }*/
       jumps++;
       player.v.y = JUMP_VELOCITY;
     }
@@ -373,6 +410,14 @@ function main() {
       player.walking = Direction.Left;
     } else if (event.code === "KeyD") {
       player.walking = Direction.Right;
+    } else if (event.code === "KeyE" || event.code === "KeyQ") {
+      const web = new Web(
+        player.center.x,
+        player.bottomRight.y,
+        10,
+        player.walking,
+      );
+      webs.push(web);
     }
   });
   document.addEventListener("keyup", (event) => {
@@ -417,42 +462,69 @@ function loop(time) {
   }
 
   player.update(dt);
-  const playerCenter = player.r.add(player.size.mul(0.5));
+  for (const web of webs) {
+    if (web.v.x !== 0 || web.v.y !== 0) {
+      web.update(dt);
+      // TODO: optimize with marching squares or similar
+      for (const platform of platforms) {
+        if (web.collidesWith(platform)) {
+          web.v.x = 0;
+          web.v.y = 0;
+          const overlap = web.overlapWith(platform);
+          const overlapAbs = overlap.abs();
+          if (overlapAbs.y > overlapAbs.x) {
+            if (web.center.x > platform.center.x) {
+              web.r.x = platform.r.x + platform.size.x;
+            } else {
+              web.r.x = platform.r.x - web.size.x;
+            }
+          } else {
+            if (web.center.y > platform.center.y) {
+              web.r.y = platform.r.y + platform.size.y;
+            } else {
+              web.r.y = platform.r.y - web.size.y;
+            }
+          }
+        }
+      }
+    }
+    web.paint(context);
+  }
 
   let onGround = false;
   let noCollisions = true;
-  for (const object of objects) {
-    if (player.collidesWith(object)) {
+  for (const platform of platforms) {
+    if (player.collidesWith(platform)) {
       noCollisions = false;
-      const objectCenter = object.r.add(object.size.mul(0.5));
-      const overlap = player.overlapWith(object).abs();
+      const overlap = player.overlapWith(platform).abs();
       if (overlap.y < overlap.x) {
-        if (playerCenter.y > objectCenter.y) {
-          // Place player's top edge at object's bottom edge
-          player.r.y = object.r.y + object.size.y;
+        if (player.center.y > platform.center.y) {
+          // Place player's top edge at platform's bottom edge
+          player.r.y = platform.r.y + platform.size.y;
           onGround = true;
         } else {
-          // Place player's bottom edge at object's top edge
-          player.r.y = object.r.y - player.size.y;
+          // Place player's bottom edge at platform's top edge
+          player.r.y = platform.r.y - player.size.y;
           player.colliding = Colliding.Ceiling;
         }
         player.v.y = 0;
       } else {
-        if (playerCenter.x > objectCenter.x) {
-          // Place player's left edge at object's right edge
-          player.r.x = object.r.x + object.size.x;
+        if (player.center.x > platform.center.x) {
+          // Place player's left edge at platform's right edge
+          player.r.x = platform.r.x + platform.size.x;
+          player.collisionDirection = Direction.Left;
         } else {
-          // Place player's right edge at object's left edge
-          player.r.x = object.r.x - player.size.x;
+          // Place player's right edge at platform's left edge
+          player.r.x = platform.r.x - player.size.x;
+          player.collisionDirection = Direction.Right;
         }
         player.colliding = Colliding.Wall;
-        if (!object.notJumpable) {
+        if (!platform.notJumpable) {
           jumps = 0;
         }
       }
     }
-
-    object.paint(context);
+    platform.paint(context);
   }
   if (onGround) {
     player.colliding = Colliding.Ground;
@@ -485,7 +557,7 @@ function loop(time) {
 }
 
 function addDefaultPlatforms() {
-  objects.push(
+  platforms.push(
     // Walls
     new Platform(0, 0, 0, Infinity, true),
     new Platform(canvas.width, 0, 0, Infinity, true),
@@ -501,7 +573,7 @@ function generatePlatforms() {
     const x = (canvas.width - w) * rand();
     const y = generatedUntil + 250;
     generatedUntil = y;
-    objects.push(new Platform(x, y, w, h));
+    platforms.push(new Platform(x, y, w, h));
   }
 }
 
