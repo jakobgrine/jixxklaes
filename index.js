@@ -13,31 +13,32 @@ const PLATFORM_HEIGHT = 30;
 let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
 
+function loadImage(filename) {
+  const image = new Image();
+  image.src = filename;
+  return image;
+}
+
 const Sprites = {
+  Still: "still.png",
   Walking: [
     "walking_1.png",
     "walking_2.png",
     "walking_3.png",
   ],
-  Jumping: [
-    "jumping.png",
-  ],
-  Still: [
-    "still.png",
-  ],
-  Falling: [
-    "falling.png",
-  ],
+  Jumping: "jumping.png",
+  Falling: "falling.png",
 };
 for (const key of Object.keys(Sprites)) {
-  for (let i = 0; i < Sprites[key].length; i++) {
-    const img = new Image();
-    img.src = "sprite/" + Sprites[key][i];
-    Sprites[key][i] = img;
+  if (Array.isArray(Sprites[key])) {
+    for (let i = 0; i < Sprites[key].length; i++) {
+        Sprites[key][i] = loadImage("sprite/" + Sprites[key][i]);
+    }
+  } else {
+    Sprites[key] = loadImage("sprite/" + Sprites[key]);
   }
 }
-const groundSprite = new Image();
-groundSprite.src = "ground.png";
+const groundSprite = loadImage("sprite/ground.png");
 
 // See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
 function cyrb128(str) {
@@ -287,7 +288,7 @@ class Player extends GameObject {
     context.scale(this.direction === Direction.Left ? -1 : 1, -1);
     context.translate(-this.center.x, -this.center.y);
 
-    let sprite = Sprites.Still[0];
+    let sprite = Sprites.Still;
     if (this.colliding === Colliding.Ground && this.walking) {
       sprite = Sprites.Walking[walkingAnimationState];
       walkingAnimationCounter++;
@@ -301,9 +302,9 @@ class Player extends GameObject {
     }
     if (!this.colliding || this.colliding === Colliding.Wall) {
       if (this.v.y > 0) {
-        sprite = Sprites.Jumping[0];
+        sprite = Sprites.Jumping;
       } else {
-        sprite = Sprites.Falling[0];
+        sprite = Sprites.Falling;
       }
     }
     context.drawImage(
