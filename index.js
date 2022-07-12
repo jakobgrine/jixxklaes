@@ -226,7 +226,7 @@ class Player extends GameObject {
       this.v = this.v.add(this.a.mul(dt));
     }
 
-    if (this.colliding === Colliding.Wall && !jumped) {
+    if (this.colliding === Colliding.Wall) {// && !jumped) {
       // Stop at walls
       this.v.x = 0;
       // Slide down walls
