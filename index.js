@@ -30,6 +30,7 @@ function loadImage(filename) {
   image.src = filename;
   return image;
 }
+// Load all sprites
 for (const key of Object.keys(Sprites)) {
   if (Array.isArray(Sprites[key])) {
     for (let i = 0; i < Sprites[key].length; i++) {
@@ -85,7 +86,6 @@ function sfc32(a, b, c, d) {
 let playerSprite;
 let canvas, context;
 let lastTime = 0;
-let jumps = 0;
 let scrollPosition = 0;
 let generatedUntil = 0;
 let score = 0;
@@ -95,9 +95,11 @@ let walkingAnimationState = 0;
 let walkingAnimationCounter = 0;
 
 const Colliding = {
-  Ceiling: "Ceiling",
-  Ground: "Ground",
-  Wall: "Wall",
+  Ceiling: 1 << 0,
+  Ground: 1 << 1,
+  WallRight: 1 << 2,
+  WallLeft: 1 << 3,
+  Wall: 1 << 2 | 1 << 3,
 };
 const Direction = {
   Left: "Left",
@@ -175,11 +177,8 @@ class GameObject {
 }
 
 class Platform extends GameObject {
-  notJumpable; // only works on walls
-
-  constructor(x, y, w, h, notJumpable) {
+  constructor(x, y, w, h) {
     super(x, y, w, h);
-    this.notJumpable = notJumpable || false;
   }
 
   paint(context) {
@@ -203,14 +202,13 @@ class Platform extends GameObject {
   }
 }
 
-//let jumped = false;
-
 class Player extends GameObject {
   a;
   v;
   colliding;
   walking;
   direction;
+  jumps;
 
   constructor(x, y, h) {
     // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
@@ -222,21 +220,14 @@ class Player extends GameObject {
   }
 
   update(dt) {
-    if (this.colliding !== Colliding.Ground) {
+    if (~this.colliding & Colliding.Ground) {
       this.v = this.v.add(this.a.mul(dt));
     }
 
-    if (this.colliding === Colliding.Wall) {// && !jumped) {
+    if (this.colliding & Colliding.Wall) {
       // Stop at walls
       this.v.x = 0;
-      // Slide down walls
-      /*if (this.direction === this.collisionDirection) {
-        this.v.y = WALL_SLIDE_VELOCITY;
-      }*/
     }
-    /*if (jumped) {
-      jumped = false;
-    }*/
 
     if (this.walking === Direction.Right) {
       this.v.x = WALK_VELOCITY;
@@ -246,7 +237,7 @@ class Player extends GameObject {
 
     // Slow down when on ground
     const sign = this.v.x > 0 ? 1 : -1;
-    if (this.v.x !== 0 && this.colliding === Colliding.Ground && !this.walking) {
+    if (this.v.x !== 0 && this.colliding & Colliding.Ground && !this.walking) {
       this.v.x -= sign * GROUND_FRICTION;
     }
 
@@ -291,7 +282,7 @@ class Player extends GameObject {
     context.translate(-this.center.x, -this.center.y);
 
     let sprite = Sprites.Still;
-    if (this.colliding === Colliding.Ground && this.walking) {
+    if (this.colliding & Colliding.Ground && this.walking) {
       sprite = Sprites.Walking[walkingAnimationState];
       walkingAnimationCounter++;
       if (walkingAnimationCounter > 10) {
@@ -302,7 +293,7 @@ class Player extends GameObject {
         }
       }
     }
-    if (!this.colliding || this.colliding === Colliding.Wall) {
+    if (!this.colliding || this.colliding & Colliding.Wall) {
       if (this.v.y > 0) {
         sprite = Sprites.Jumping;
       } else {
@@ -395,14 +386,8 @@ function main() {
   context.translate(0, -canvas.height);
 
   document.addEventListener("keydown", (event) => {
-    if (event.code === "Space" && jumps < JUMPS) {
-      /*if (player.colliding === Colliding.Wall) {
-        const dir = player.collisionDirection === Direction.Left ? 1 : -1;
-        player.v.x = dir * WALK_VELOCITY;
-        jumped = true;
-        player.r.x += dir;
-      }*/
-      jumps++;
+    if (event.code === "Space" && player.jumps < JUMPS) {
+      player.jumps++;
       player.v.y = JUMP_VELOCITY;
     }
 
@@ -491,60 +476,57 @@ function loop(time) {
     web.paint(context);
   }
 
-  let onGround = false;
-  let noCollisions = true;
+  player.colliding = 0;
   for (const platform of platforms) {
     if (player.collidesWith(platform)) {
-      noCollisions = false;
       const overlap = player.overlapWith(platform).abs();
       if (overlap.y < overlap.x) {
         if (player.center.y > platform.center.y) {
           // Place player's top edge at platform's bottom edge
           player.r.y = platform.r.y + platform.size.y;
-          onGround = true;
+          player.colliding |= Colliding.Ground;
         } else {
           // Place player's bottom edge at platform's top edge
           player.r.y = platform.r.y - player.size.y;
-          player.colliding = Colliding.Ceiling;
+          player.colliding |= Colliding.Ceiling;
         }
         player.v.y = 0;
       } else {
         if (player.center.x > platform.center.x) {
           // Place player's left edge at platform's right edge
           player.r.x = platform.r.x + platform.size.x;
-          player.collisionDirection = Direction.Left;
+          player.colliding |= Colliding.WallLeft;
         } else {
           // Place player's right edge at platform's left edge
           player.r.x = platform.r.x - player.size.x;
-          player.collisionDirection = Direction.Right;
-        }
-        player.colliding = Colliding.Wall;
-        if (!platform.notJumpable) {
-          jumps = 0;
+          player.colliding |= Colliding.WallRight;
         }
       }
     }
     platform.paint(context);
   }
-  if (onGround) {
-    player.colliding = Colliding.Ground;
-  }
-  if (noCollisions) {
-    player.colliding = null;
+
+  // Stop the player at the left or right edge of the screen
+  if (player.r.x <= 0) {
+    player.r.x = 0;
+    player.colliding |= Colliding.WallLeft;
+  } else if (player.r.x + player.size.x >= canvas.width) {
+    player.r.x = canvas.width - player.size.x;
+    player.colliding |= Colliding.WallRight;
   }
 
   player.paint(context);
 
-  const newScore = Math.floor(player.r.y / 250);
-  if (player.colliding === Colliding.Ground) {
-    jumps = 0;
-    score = newScore;
+  const currentScore = Math.floor(player.r.y / 250);
+  if (player.colliding & Colliding.Ground) {
+    player.jumps = 0;
+    score = currentScore;
     if (score > highscore) {
       highscore = score;
       localStorage.setItem("highscore", highscore);
     }
-  } else if (newScore < score) {
-    score = newScore;
+  } else if (currentScore < score) {
+    score = currentScore;
   }
 
   context.textAlign = "left";
@@ -558,9 +540,6 @@ function loop(time) {
 
 function addDefaultPlatforms() {
   platforms.push(
-    // Walls
-    new Platform(0, 0, 0, Infinity, true),
-    new Platform(canvas.width, 0, 0, Infinity, true),
     // Ground
     new Platform(0, 0, canvas.width, PLATFORM_HEIGHT),
   );
