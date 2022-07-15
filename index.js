@@ -91,9 +91,6 @@ let generatedUntil = 0;
 let score = 0;
 let highscore = localStorage.getItem("highscore") || 0;
 
-let walkingAnimationState = 0;
-let walkingAnimationCounter = 0;
-
 const Colliding = {
   Ceiling: 1 << 0,
   Ground: 1 << 1,
@@ -210,6 +207,9 @@ class Player extends GameObject {
   direction;
   jumps;
 
+  #walkingAnimationState = 0;
+  #walkingAnimationCounter = 0;
+
   constructor(x, y, h) {
     // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
     const aspectRatio = 250 / 270;
@@ -283,14 +283,12 @@ class Player extends GameObject {
 
     let sprite = Sprites.Still;
     if (this.colliding & Colliding.Ground && this.walking) {
-      sprite = Sprites.Walking[walkingAnimationState];
-      walkingAnimationCounter++;
-      if (walkingAnimationCounter > 10) {
-        walkingAnimationCounter = 0;
-        walkingAnimationState++;
-        if (walkingAnimationState >= 3) {
-          walkingAnimationState = 0;
-        }
+      sprite = Sprites.Walking[this.#walkingAnimationState];
+      this.#walkingAnimationCounter++;
+      this.#walkingAnimationCounter %= 10;
+      if (this.#walkingAnimationCounter === 0) {
+        this.#walkingAnimationState++;
+        this.#walkingAnimationState %= Sprites.Walking.length;
       }
     }
     if (!this.colliding || this.colliding & Colliding.Wall) {
