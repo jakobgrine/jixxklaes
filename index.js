@@ -559,7 +559,7 @@ function drawText(text, x, y) {
   context.translate(0, canvas.height + scrollPosition);
   context.scale(1, -1);
 
-  const lines = text.split("\n");
+  const lines = text.toString().split("\n");
   for (let i = 0; i < lines.length; i++) {
     context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
     context.fillText(lines[i], x, y + _FONT_SIZE + (_FONT_SIZE + 10) * i);
