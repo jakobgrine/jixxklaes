@@ -1,3 +1,5 @@
+const DEFAULT_SEED = "Jixxklääs";
+
 const JUMPS = 3;
 const GRAVITY = -40;
 const GROUND_FRICTION = 4;
@@ -5,10 +7,11 @@ const WALK_VELOCITY = 40;
 const JUMP_VELOCITY = 120;
 const WALL_SLIDE_VELOCITY = -30;
 const MAX_FALL_VELOCITY = -120;
+
 const TOP_PADDING = 200;
 const BOTTOM_PADDING = 200;
-const DEFAULT_HASH = "Jixxklääs";
 const PLATFORM_HEIGHT = 30;
+const PLATFORM_DISTANCE = 250;
 
 let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
@@ -42,6 +45,7 @@ for (const key of Object.keys(Sprites)) {
 }
 
 // See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+// Hash function for strings
 function cyrb128(str) {
   let h1 = 1779033703,
     h2 = 3144134277,
@@ -66,6 +70,7 @@ function cyrb128(str) {
   ];
 }
 
+// Returns a random number generator for the given seed
 function sfc32(a, b, c, d) {
   return function () {
     a >>>= 0;
@@ -200,23 +205,20 @@ class Platform extends GameObject {
 }
 
 class Player extends GameObject {
-  a;
-  v;
-  colliding;
+  a = new Vec2(0, GRAVITY);
+  v = new Vec2(0, 0);
+  colliding = 0;
   walking;
   direction;
-  jumps;
+  jumps = 0;
 
   #walkingAnimationState = 0;
   #walkingAnimationCounter = 0;
 
   constructor(x, y, h) {
-    // const aspectRatio = playerSprite ? playerSprite.width / playerSprite.height : 2;
+    // TODO: no hardcoded aspect ratio, compute from image
     const aspectRatio = 250 / 270;
     super(x, y, aspectRatio * h, h);
-
-    this.a = new Vec2(0, GRAVITY);
-    this.v = new Vec2(0, 0);
   }
 
   update(dt) {
@@ -282,22 +284,26 @@ class Player extends GameObject {
     context.translate(-this.center.x, -this.center.y);
 
     let sprite = Sprites.Still;
-    if (this.colliding & Colliding.Ground && this.walking) {
+    if (this.colliding & Colliding.Ground
+      && !(this.colliding & Colliding.Wall)
+      && this.walking)
+    {
       sprite = Sprites.Walking[this.#walkingAnimationState];
       this.#walkingAnimationCounter++;
-      this.#walkingAnimationCounter %= 10;
+      this.#walkingAnimationCounter %= 7;
       if (this.#walkingAnimationCounter === 0) {
         this.#walkingAnimationState++;
         this.#walkingAnimationState %= Sprites.Walking.length;
       }
     }
-    if (!this.colliding || this.colliding & Colliding.Wall) {
+    if (!(this.colliding & Colliding.Ground)) {
       if (this.v.y > 0) {
         sprite = Sprites.Jumping;
       } else {
         sprite = Sprites.Falling;
       }
     }
+
     context.drawImage(
       sprite,
       this.r.x,
@@ -308,9 +314,19 @@ class Player extends GameObject {
 
     context.restore();
   }
+
+  jump() {
+    if (this.jumps < JUMPS) {
+      this.jumps++;
+      this.v.y = JUMP_VELOCITY;
+    }
+  }
 }
 
+const p = it => (it >>> 0).toString(2).padStart(4, "0");
+
 const player = new Player(250, 200, 70);
+const STATIC_PLATFORMS = [];
 let platforms = [];
 let webs = [];
 
@@ -349,8 +365,7 @@ function setSeed(it) {
   seed = cyrb128(it);
   rand = sfc32(seed[0], seed[1], seed[2], seed[3]);
 
-  platforms = [];
-  addDefaultPlatforms();
+  platforms = STATIC_PLATFORMS;
   generatedUntil = 0;
   if (canvas) {
     generatePlatforms();
@@ -366,30 +381,46 @@ function setSeed(it) {
 
 function main() {
   canvas = document.getElementById("canvas");
-  canvas.height = window.innerHeight - 170;
+  if (!canvas) {
+    console.error("failed to get canvas element");
+    return;
+  }
   context = canvas.getContext("2d");
+  if (!context) {
+    console.error("failed to get canvas context");
+    return;
+  }
 
-  document
-    .getElementById("seed")
-    .addEventListener("input", (event) => setSeed(event.target.value));
+  canvas.height = window.innerHeight - 170;
+
+  STATIC_PLATFORMS.push(
+    // Ground
+    new Platform(0, 0, canvas.width, PLATFORM_HEIGHT),
+  );
+  platforms = STATIC_PLATFORMS;
+
+  const seedInput = document.getElementById("seed");
+  if (!seedInput) {
+    console.error("failed to get seed input element");
+    return;
+  }
+  // Update the seed when the input changes
+  seedInput.addEventListener("input", (event) => setSeed(event.target.value));
+  // Update the seed when the url changes
   window.addEventListener("hashchange", () =>
     setSeed(window.location.hash.substring(1))
   );
-  setSeed(window.location.hash.substring(1) || DEFAULT_HASH);
-
-  addDefaultPlatforms();
+  // Load the seed from the url
+  setSeed(window.location.hash.substring(1) || DEFAULT_SEED);
 
   // Place coordinate system origin in bottom left corner
   context.scale(1, -1);
   context.translate(0, -canvas.height);
 
   document.addEventListener("keydown", (event) => {
-    if (event.code === "Space" && player.jumps < JUMPS) {
-      player.jumps++;
-      player.v.y = JUMP_VELOCITY;
-    }
-
-    if (event.code === "KeyA") {
+    if (event.code === "Space") {
+      player.jump();
+    } else if (event.code === "KeyA") {
       player.walking = Direction.Left;
     } else if (event.code === "KeyD") {
       player.walking = Direction.Right;
@@ -441,10 +472,17 @@ function loop(time) {
     }
     context.fillStyle = "lightgreen";
     context.textAlign = "right";
-    drawText(fps, canvas.width - 20, 20);
+    drawText(
+      `${fps}
+      ${player.jumps}
+      0b${player.colliding.toString(2).padStart(4, "0")}`,
+      canvas.width - 20,
+      20,
+    );
   }
 
   player.update(dt);
+
   for (const web of webs) {
     if (web.v.x !== 0 || web.v.y !== 0) {
       web.update(dt);
@@ -513,9 +551,7 @@ function loop(time) {
     player.colliding |= Colliding.WallRight;
   }
 
-  player.paint(context);
-
-  const currentScore = Math.floor(player.r.y / 250);
+  const currentScore = Math.floor(player.r.y / PLATFORM_DISTANCE);
   if (player.colliding & Colliding.Ground) {
     player.jumps = 0;
     score = currentScore;
@@ -536,19 +572,12 @@ function loop(time) {
   player.paint(context);
 }
 
-function addDefaultPlatforms() {
-  platforms.push(
-    // Ground
-    new Platform(0, 0, canvas.width, PLATFORM_HEIGHT),
-  );
-}
-
 function generatePlatforms() {
   while (generatedUntil - player.r.y < 2 * canvas.height) {
     const w = Math.round((100 + rand() * 100) / PLATFORM_HEIGHT) * PLATFORM_HEIGHT;
     const h = PLATFORM_HEIGHT;
     const x = (canvas.width - w) * rand();
-    const y = generatedUntil + 250;
+    const y = generatedUntil + PLATFORM_DISTANCE;
     generatedUntil = y;
     platforms.push(new Platform(x, y, w, h));
   }
