@@ -425,10 +425,12 @@ function main() {
         player.jump();
         break;
       case "KeyA":
+      case "ArrowLeft":
         leftPressed = true;
         player.walking = Direction.Left;
         break;
       case "KeyD":
+      case "ArrowRight":
         rightPressed = true;
         player.walking = Direction.Right;
         break;
@@ -447,6 +449,7 @@ function main() {
   document.addEventListener("keyup", (event) => {
     switch (event.code) {
       case "KeyA":
+      case "ArrowLeft":
         leftPressed = false;
         if (!leftPressed && !rightPressed) {
           player.walking = null;
@@ -455,6 +458,7 @@ function main() {
         }
         break;
       case "KeyD":
+      case "ArrowRight":
         rightPressed = false;
         if (!leftPressed && !rightPressed) {
           player.walking = null;
