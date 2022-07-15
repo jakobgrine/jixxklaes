@@ -91,6 +91,8 @@ function sfc32(a, b, c, d) {
 let playerSprite;
 let canvas, context;
 let lastTime = 0;
+let leftPressed = false;
+let rightPressed = false;
 let scrollPosition = 0;
 let generatedUntil = 0;
 let score = 0;
@@ -418,25 +420,48 @@ function main() {
   context.translate(0, -canvas.height);
 
   document.addEventListener("keydown", (event) => {
-    if (event.code === "Space") {
-      player.jump();
-    } else if (event.code === "KeyA") {
-      player.walking = Direction.Left;
-    } else if (event.code === "KeyD") {
-      player.walking = Direction.Right;
-    } else if (event.code === "KeyE" || event.code === "KeyQ") {
-      const web = new Web(
-        player.center.x,
-        player.bottomRight.y,
-        10,
-        player.walking,
-      );
-      webs.push(web);
+    switch (event.code) {
+      case "Space":
+        player.jump();
+        break;
+      case "KeyA":
+        leftPressed = true;
+        player.walking = Direction.Left;
+        break;
+      case "KeyD":
+        rightPressed = true;
+        player.walking = Direction.Right;
+        break;
+      case "KeyE":
+      case "KeyQ":
+        const web = new Web(
+          player.center.x,
+          player.bottomRight.y,
+          10,
+          player.walking,
+        );
+        webs.push(web);
+        break;
     }
   });
   document.addEventListener("keyup", (event) => {
-    if (event.code === "KeyD" || event.code === "KeyA") {
-      player.walking = null;
+    switch (event.code) {
+      case "KeyA":
+        leftPressed = false;
+        if (!leftPressed && !rightPressed) {
+          player.walking = null;
+        } else if (rightPressed) {
+          player.walking = Direction.Right;
+        }
+        break;
+      case "KeyD":
+        rightPressed = false;
+        if (!leftPressed && !rightPressed) {
+          player.walking = null;
+        } else if (leftPressed) {
+          player.walking = Direction.Left;
+        }
+        break;
     }
   });
 
