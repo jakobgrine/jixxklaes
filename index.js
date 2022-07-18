@@ -325,8 +325,6 @@ class Player extends GameObject {
   }
 }
 
-const p = it => (it >>> 0).toString(2).padStart(4, "0");
-
 const player = new Player(250, 200, 70);
 const STATIC_PLATFORMS = [];
 let platforms = [];
@@ -493,12 +491,13 @@ function loop(time) {
   context.clearRect(0, scrollPosition, canvas.width, canvas.height);
 
   if (_SHOW_DEBUG_INFO) {
-    if (i < 10) {
-      i += 1;
-    } else {
-      i = 0;
+    // Do not update the fps every frame so it does not flicker
+    i++;
+    i %= 10;
+    if (i === 0) {
       fps = (10 / dt).toFixed(1);
     }
+
     context.fillStyle = "lightgreen";
     context.textAlign = "right";
     drawText(
