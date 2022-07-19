@@ -248,11 +248,10 @@ class Player extends GameObject {
       const scaledWidth = (312 / 252) * this.size.x;
       const scaledHeight = (348 / 276) * this.size.y;
       const dw = scaledWidth - this.size.x;
-      const dh = scaledHeight - this.size.y;
       context.drawImage(
         sprite,
         this.r.x - dw / 2,
-        this.r.y - dh,
+        this.r.y,
         scaledWidth,
         scaledHeight
       );
