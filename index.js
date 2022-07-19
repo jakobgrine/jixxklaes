@@ -22,19 +22,35 @@ const Sprites = {
 };
 
 function loadImage(filename) {
-  const image = new Image();
-  image.src = filename;
-  return image;
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onerror = reject;
+    image.onload = () => resolve(image);
+    image.src = filename;
+  });
 }
-// Load all sprites
-for (const key of Object.keys(Sprites)) {
-  if (Array.isArray(Sprites[key])) {
-    for (let i = 0; i < Sprites[key].length; i++) {
-      Sprites[key][i] = loadImage("sprite/" + Sprites[key][i]);
+
+async function loadSprites() {
+  // Load all sprites
+  const promises = [];
+  for (const key of Object.keys(Sprites)) {
+    if (Array.isArray(Sprites[key])) {
+      for (let i = 0; i < Sprites[key].length; i++) {
+        promises.push(
+          loadImage("sprite/" + Sprites[key][i]).then(
+            (image) => (Sprites[key][i] = image)
+          )
+        );
+      }
+    } else {
+      promises.push(
+        loadImage("sprite/" + Sprites[key]).then(
+          (image) => (Sprites[key] = image)
+        )
+      );
     }
-  } else {
-    Sprites[key] = loadImage("sprite/" + Sprites[key]);
   }
+  await Promise.all(promises);
 }
 
 let playerSprite;
@@ -153,8 +169,7 @@ class Player extends GameObject {
   #walkingAnimationCounter = 0;
 
   constructor(x, y, h) {
-    // TODO: no hardcoded aspect ratio, compute from image
-    const aspectRatio = 252 / 276;
+    const aspectRatio = Sprites.Still.width / Sprites.Still.height;
     super(x, y, aspectRatio * h, h);
   }
 
@@ -228,7 +243,7 @@ class Player extends GameObject {
           sprite,
           this.r.x,
           this.r.y,
-          (312 / 252) * this.size.x,
+          (sprite.width / Sprites.Still.width) * this.size.x,
           this.size.y
         );
 
@@ -245,8 +260,8 @@ class Player extends GameObject {
       }
     } else {
       sprite = Sprites.Jumping;
-      const scaledWidth = (312 / 252) * this.size.x;
-      const scaledHeight = (348 / 276) * this.size.y;
+      const scaledWidth = (sprite.width / Sprites.Still.width) * this.size.x;
+      const scaledHeight = (sprite.height / Sprites.Still.height) * this.size.y;
       const dw = scaledWidth - this.size.x;
       context.drawImage(
         sprite,
@@ -268,7 +283,7 @@ class Player extends GameObject {
   }
 }
 
-const player = new Player(250, 200, 70);
+let player;
 const STATIC_PLATFORMS = [];
 let platforms = [];
 
@@ -300,7 +315,7 @@ function cyrb128(str) {
 
 // Returns a random number generator for the given seed
 function sfc32(a, b, c, d) {
-  return function () {
+  return function() {
     a >>>= 0;
     b >>>= 0;
     c >>>= 0;
@@ -337,7 +352,11 @@ function setSeed(it) {
   document.title = it;
 }
 
-function main() {
+async function main() {
+  await loadSprites();
+
+  player = new Player(250, 200, 70);
+
   canvas = document.getElementById("canvas");
   if (!canvas) {
     console.error("failed to get canvas element");
