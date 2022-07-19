@@ -8,9 +8,7 @@ const JUMP_VELOCITY = 120;
 const WALL_SLIDE_VELOCITY = -30;
 const MAX_FALL_VELOCITY = -120;
 
-const TOP_PADDING = 200;
-const BOTTOM_PADDING = 200;
-const PLATFORM_HEIGHT = 30;
+const PLATFORM_TILE_SIZE = 30;
 const PLATFORM_DISTANCE = 250;
 
 let _SHOW_DEBUG_INFO = false;
@@ -18,13 +16,8 @@ const _FONT_SIZE = 20;
 
 const Sprites = {
   Still: "still.png",
-  Walking: [
-    "walking_1.png",
-    "walking_2.png",
-    "walking_3.png",
-  ],
+  Walking: ["walking_1.png", "walking_2.png", "walking_3.png", "walking_4.png"],
   Jumping: "jumping.png",
-  Falling: "falling.png",
   Ground: "ground.png",
 };
 
@@ -44,67 +37,11 @@ for (const key of Object.keys(Sprites)) {
   }
 }
 
-// See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
-// Hash function for strings
-function cyrb128(str) {
-  let h1 = 1779033703,
-    h2 = 3144134277,
-    h3 = 1013904242,
-    h4 = 2773480762;
-  for (let i = 0, k; i < str.length; i++) {
-    k = str.charCodeAt(i);
-    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
-    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
-    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
-    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
-  }
-  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
-  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
-  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
-  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
-  return [
-    (h1 ^ h2 ^ h3 ^ h4) >>> 0,
-    (h2 ^ h1) >>> 0,
-    (h3 ^ h1) >>> 0,
-    (h4 ^ h1) >>> 0,
-  ];
-}
-
-// Returns a random number generator for the given seed
-function sfc32(a, b, c, d) {
-  return function () {
-    a >>>= 0;
-    b >>>= 0;
-    c >>>= 0;
-    d >>>= 0;
-    var t = (a + b) | 0;
-    a = b ^ (b >>> 9);
-    b = (c + (c << 3)) | 0;
-    c = (c << 21) | (c >>> 11);
-    d = (d + 1) | 0;
-    t = (t + d) | 0;
-    c = (c + t) | 0;
-    return (t >>> 0) / 4294967296;
-  };
-}
-
 let playerSprite;
 let canvas, context;
-let lastTime = 0;
-let leftPressed = false;
-let rightPressed = false;
 let scrollPosition = 0;
 let generatedUntil = 0;
-let score = 0;
-let highscore = localStorage.getItem("highscore") || 0;
 
-const Colliding = {
-  Ceiling: 1 << 0,
-  Ground: 1 << 1,
-  WallRight: 1 << 2,
-  WallLeft: 1 << 3,
-  Wall: 1 << 2 | 1 << 3,
-};
 const Direction = {
   Left: "Left",
   Right: "Right",
@@ -186,30 +123,28 @@ class Platform extends GameObject {
   }
 
   paint(context) {
-    const spriteSize = PLATFORM_HEIGHT;
-    for (let col = 0; col < this.size.x / spriteSize; col++) {
-      for (let row = 0; row < this.size.y / spriteSize; row++) {
-        context.drawImage(Sprites.Ground,
-          this.r.x + col * spriteSize, this.r.y + row * spriteSize,
-          spriteSize, spriteSize,
+    for (let col = 0; col < this.size.x / PLATFORM_TILE_SIZE; col++) {
+      for (let row = 0; row < this.size.y / PLATFORM_TILE_SIZE; row++) {
+        context.drawImage(
+          Sprites.Ground,
+          this.r.x + col * PLATFORM_TILE_SIZE,
+          this.r.y + row * PLATFORM_TILE_SIZE,
+          PLATFORM_TILE_SIZE,
+          PLATFORM_TILE_SIZE
         );
       }
     }
 
     if (_SHOW_DEBUG_INFO) {
       context.strokeStyle = "red";
-      context.strokeRect(
-        this.r.x, this.r.y,
-        this.size.x, this.size.y,
-      );
+      context.strokeRect(this.r.x, this.r.y, this.size.x, this.size.y);
     }
   }
 }
 
 class Player extends GameObject {
-  a = new Vec2(0, GRAVITY);
   v = new Vec2(0, 0);
-  colliding = 0;
+  collision = {};
   walking;
   direction;
   jumps = 0;
@@ -219,30 +154,33 @@ class Player extends GameObject {
 
   constructor(x, y, h) {
     // TODO: no hardcoded aspect ratio, compute from image
-    const aspectRatio = 250 / 270;
+    const aspectRatio = 252 / 276;
     super(x, y, aspectRatio * h, h);
   }
 
   update(dt) {
-    if (~this.colliding & Colliding.Ground) {
-      this.v = this.v.add(this.a.mul(dt));
-    }
-
-    if (this.colliding & Colliding.Wall) {
-      // Stop at walls
-      this.v.x = 0;
-    }
-
-    if (this.walking === Direction.Right) {
-      this.v.x = WALK_VELOCITY;
-    } else if (this.walking === Direction.Left) {
+    if (this.walking === Direction.Left) {
       this.v.x = -WALK_VELOCITY;
+    } else if (this.walking === Direction.Right) {
+      this.v.x = WALK_VELOCITY;
     }
 
     // Slow down when on ground
     const sign = this.v.x > 0 ? 1 : -1;
-    if (this.v.x !== 0 && this.colliding & Colliding.Ground && !this.walking) {
+    if (this.v.x !== 0 && this.collision.ground && !this.walking) {
       this.v.x -= sign * GROUND_FRICTION;
+    }
+
+    // Update facing direction
+    if (this.v.x < 0 || this.walking === Direction.Left) {
+      this.direction = Direction.Left;
+    } else if (this.v.x > 0 || this.walking === Direction.Right) {
+      this.direction = Direction.Right;
+    }
+
+    // Apply gravity if not standing on the ground
+    if (!this.collision.ground) {
+      this.v.y += GRAVITY * dt;
     }
 
     // Constrain to maximum velocity
@@ -250,27 +188,20 @@ class Player extends GameObject {
       this.v.y = MAX_FALL_VELOCITY;
     }
 
-    // Calculate facing direction
-    if (this.v.x > 0) {
-      this.direction = Direction.Right;
-    } else if (this.v.x < 0) {
-      this.direction = Direction.Left;
-    }
-
     this.r = this.r.add(this.v.mul(dt));
 
     const topDistance =
-      TOP_PADDING - (canvas.height - (this.r.y + this.size.y - scrollPosition));
+      this.r.y + this.size.y - scrollPosition - (3 / 5) * canvas.height;
     if (topDistance > 0) {
       // Move viewport up
       scrollPosition += topDistance;
       context.translate(0, -topDistance);
     }
-    const bottomDistance = BOTTOM_PADDING - (this.r.y - scrollPosition);
-    if (bottomDistance > 0) {
+    const bottomDistance = this.r.y - scrollPosition - canvas.height / 5;
+    if (bottomDistance < 0) {
       // Move viewport down
-      scrollPosition -= bottomDistance;
-      context.translate(0, bottomDistance);
+      scrollPosition += bottomDistance;
+      context.translate(0, -bottomDistance);
     }
   }
 
@@ -285,34 +216,47 @@ class Player extends GameObject {
     context.scale(this.direction === Direction.Left ? -1 : 1, -1);
     context.translate(-this.center.x, -this.center.y);
 
-    let sprite = Sprites.Still;
-    if (this.colliding & Colliding.Ground
-      && !(this.colliding & Colliding.Wall)
-      && this.walking)
-    {
-      sprite = Sprites.Walking[this.#walkingAnimationState];
-      this.#walkingAnimationCounter++;
-      this.#walkingAnimationCounter %= 7;
-      if (this.#walkingAnimationCounter === 0) {
-        this.#walkingAnimationState++;
-        this.#walkingAnimationState %= Sprites.Walking.length;
-      }
-    }
-    if (!(this.colliding & Colliding.Ground)) {
-      if (this.v.y > 0) {
-        sprite = Sprites.Jumping;
-      } else {
-        sprite = Sprites.Falling;
-      }
-    }
+    let sprite;
+    if (this.collision.ground) {
+      if (
+        this.walking &&
+        !this.collision.wall_left &&
+        !this.collision.wall_right
+      ) {
+        sprite = Sprites.Walking[this.#walkingAnimationState];
+        context.drawImage(
+          sprite,
+          this.r.x,
+          this.r.y,
+          (312 / 252) * this.size.x,
+          this.size.y
+        );
 
-    context.drawImage(
-      sprite,
-      this.r.x,
-      this.r.y,
-      this.size.x,
-      this.size.y,
-    );
+        // Advance walking animation
+        this.#walkingAnimationCounter++;
+        this.#walkingAnimationCounter %= 8;
+        if (this.#walkingAnimationCounter === 0) {
+          this.#walkingAnimationState++;
+          this.#walkingAnimationState %= Sprites.Walking.length;
+        }
+      } else {
+        sprite = Sprites.Still;
+        context.drawImage(sprite, this.r.x, this.r.y, this.size.x, this.size.y);
+      }
+    } else {
+      sprite = Sprites.Jumping;
+      const scaledWidth = (312 / 252) * this.size.x;
+      const scaledHeight = (348 / 276) * this.size.y;
+      const dw = scaledWidth - this.size.x;
+      const dh = scaledHeight - this.size.y;
+      context.drawImage(
+        sprite,
+        this.r.x - dw / 2,
+        this.r.y - dh,
+        scaledWidth,
+        scaledHeight
+      );
+    }
 
     context.restore();
   }
@@ -328,34 +272,49 @@ class Player extends GameObject {
 const player = new Player(250, 200, 70);
 const STATIC_PLATFORMS = [];
 let platforms = [];
-let webs = [];
 
-class Web extends GameObject {
-  v;
-
-  constructor(x, y, r, direction) {
-    super(x, y, r, r);
-    const sign = this.direction === Direction.Left
-      ? -1
-      : this.direction === Direction.Right
-      ? 1
-      : 0;
-    this.v = new Vec2(
-      sign * 20 + player.v.x,
-      30 + player.v.y,
-    );
+// See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+// Hash function for strings
+function cyrb128(str) {
+  let h1 = 1779033703,
+    h2 = 3144134277,
+    h3 = 1013904242,
+    h4 = 2773480762;
+  for (let i = 0, k; i < str.length; i++) {
+    k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
   }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [
+    (h1 ^ h2 ^ h3 ^ h4) >>> 0,
+    (h2 ^ h1) >>> 0,
+    (h3 ^ h1) >>> 0,
+    (h4 ^ h1) >>> 0,
+  ];
+}
 
-  paint(context) {
-    context.beginPath();
-    context.arc(this.center.x, this.center.y, this.size.x, 0, 2 * Math.PI);
-    context.fillStyle = "white";
-    context.fill();
-  }
-
-  update(dt) {
-    this.r = this.r.add(this.v.mul(dt));
-  }
+// Returns a random number generator for the given seed
+function sfc32(a, b, c, d) {
+  return function () {
+    a >>>= 0;
+    b >>>= 0;
+    c >>>= 0;
+    d >>>= 0;
+    var t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    t = (t + d) | 0;
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
 }
 
 let seed, rand;
@@ -365,7 +324,7 @@ function setSeed(it) {
   seed = cyrb128(it);
   rand = sfc32(seed[0], seed[1], seed[2], seed[3]);
 
-  platforms = STATIC_PLATFORMS;
+  platforms = STATIC_PLATFORMS.slice();
   generatedUntil = 0;
   if (canvas) {
     generatePlatforms();
@@ -395,7 +354,7 @@ function main() {
 
   STATIC_PLATFORMS.push(
     // Ground
-    new Platform(0, 0, canvas.width, PLATFORM_HEIGHT),
+    new Platform(0, 0, canvas.width, PLATFORM_TILE_SIZE)
   );
   platforms = STATIC_PLATFORMS;
 
@@ -417,62 +376,16 @@ function main() {
   context.scale(1, -1);
   context.translate(0, -canvas.height);
 
-  document.addEventListener("keydown", (event) => {
-    switch (event.code) {
-      case "Space":
-        player.jump();
-        break;
-      case "KeyA":
-      case "ArrowLeft":
-        leftPressed = true;
-        player.walking = Direction.Left;
-        break;
-      case "KeyD":
-      case "ArrowRight":
-        rightPressed = true;
-        player.walking = Direction.Right;
-        break;
-      case "KeyE":
-      case "KeyQ":
-        const web = new Web(
-          player.center.x,
-          player.bottomRight.y,
-          10,
-          player.walking,
-        );
-        webs.push(web);
-        break;
-    }
-  });
-  document.addEventListener("keyup", (event) => {
-    switch (event.code) {
-      case "KeyA":
-      case "ArrowLeft":
-        leftPressed = false;
-        if (!leftPressed && !rightPressed) {
-          player.walking = null;
-        } else if (rightPressed) {
-          player.walking = Direction.Right;
-        }
-        break;
-      case "KeyD":
-      case "ArrowRight":
-        rightPressed = false;
-        if (!leftPressed && !rightPressed) {
-          player.walking = null;
-        } else if (leftPressed) {
-          player.walking = Direction.Left;
-        }
-        break;
-    }
-  });
+  document.addEventListener("keydown", inputSystem);
+  document.addEventListener("keyup", inputSystem);
 
-  loop();
+  window.requestAnimationFrame(loop);
 }
 window.addEventListener("load", main);
 
-let i = 0,
-  fps = 0;
+let fpsUpdateCounter = 0;
+let fps = 0;
+let lastTime = 0;
 function loop(time) {
   window.requestAnimationFrame(loop);
   // Skip first frame
@@ -492,9 +405,9 @@ function loop(time) {
 
   if (_SHOW_DEBUG_INFO) {
     // Do not update the fps every frame so it does not flicker
-    i++;
-    i %= 10;
-    if (i === 0) {
+    fpsUpdateCounter++;
+    fpsUpdateCounter %= 10;
+    if (fpsUpdateCounter === 0) {
       fps = (10 / dt).toFixed(1);
     }
 
@@ -502,45 +415,75 @@ function loop(time) {
     context.textAlign = "right";
     drawText(
       `${fps}
-      ${player.jumps}
-      0b${player.colliding.toString(2).padStart(4, "0")}`,
+      ${player.jumps}`,
       canvas.width - 20,
-      20,
+      20
     );
   }
 
   player.update(dt);
 
-  for (const web of webs) {
-    if (web.v.x !== 0 || web.v.y !== 0) {
-      web.update(dt);
-      // TODO: optimize with marching squares or similar
-      for (const platform of platforms) {
-        if (web.collidesWith(platform)) {
-          web.v.x = 0;
-          web.v.y = 0;
-          const overlap = web.overlapWith(platform);
-          const overlapAbs = overlap.abs();
-          if (overlapAbs.y > overlapAbs.x) {
-            if (web.center.x > platform.center.x) {
-              web.r.x = platform.r.x + platform.size.x;
-            } else {
-              web.r.x = platform.r.x - web.size.x;
-            }
-          } else {
-            if (web.center.y > platform.center.y) {
-              web.r.y = platform.r.y + platform.size.y;
-            } else {
-              web.r.y = platform.r.y - web.size.y;
-            }
-          }
-        }
-      }
-    }
-    web.paint(context);
-  }
+  collisionSystem();
 
-  player.colliding = 0;
+  player.paint(context);
+  platforms.forEach((platform) => platform.paint(context));
+
+  displayScore();
+
+  generatePlatforms();
+}
+
+// Generates new platforms until there are enough to fill the screen
+function generatePlatforms() {
+  while (generatedUntil - player.r.y < 2 * canvas.height) {
+    const w =
+      Math.round((100 + rand() * 100) / PLATFORM_TILE_SIZE) *
+      PLATFORM_TILE_SIZE;
+    const h = PLATFORM_TILE_SIZE;
+    const x = (canvas.width - w) * rand();
+    const y = generatedUntil + PLATFORM_DISTANCE;
+    generatedUntil = y;
+    platforms.push(new Platform(x, y, w, h));
+  }
+}
+
+let leftPressed = false;
+let rightPressed = false;
+function inputSystem(event) {
+  if (event.type === "keydown") {
+    switch (event.code) {
+      case "Space":
+        player.jump();
+        break;
+      case "KeyA":
+      case "ArrowLeft":
+        leftPressed = true;
+        player.walking = Direction.Left;
+        break;
+      case "KeyD":
+      case "ArrowRight":
+        rightPressed = true;
+        player.walking = Direction.Right;
+        break;
+    }
+  } else if (event.type === "keyup") {
+    switch (event.code) {
+      case "KeyA":
+      case "ArrowLeft":
+        leftPressed = false;
+        player.walking = !rightPressed ? null : Direction.Right;
+        break;
+      case "KeyD":
+      case "ArrowRight":
+        rightPressed = false;
+        player.walking = !leftPressed ? null : Direction.Left;
+        break;
+    }
+  }
+}
+
+function collisionSystem() {
+  player.collision = {};
   for (const platform of platforms) {
     if (player.collidesWith(platform)) {
       const overlap = player.overlapWith(platform).abs();
@@ -548,66 +491,35 @@ function loop(time) {
         if (player.center.y > platform.center.y) {
           // Place player's top edge at platform's bottom edge
           player.r.y = platform.r.y + platform.size.y;
-          player.colliding |= Colliding.Ground;
+          player.collision.ground = true;
         } else {
           // Place player's bottom edge at platform's top edge
           player.r.y = platform.r.y - player.size.y;
-          player.colliding |= Colliding.Ceiling;
+          player.collision.ceiling = true;
         }
         player.v.y = 0;
       } else {
         if (player.center.x > platform.center.x) {
           // Place player's left edge at platform's right edge
           player.r.x = platform.r.x + platform.size.x;
-          player.colliding |= Colliding.WallLeft;
+          player.collision.wall_left = true;
         } else {
           // Place player's right edge at platform's left edge
           player.r.x = platform.r.x - player.size.x;
-          player.colliding |= Colliding.WallRight;
+          player.collision.wall_right = true;
         }
+        player.v.x = 0;
       }
     }
-    platform.paint(context);
   }
 
   // Stop the player at the left or right edge of the screen
   if (player.r.x <= 0) {
     player.r.x = 0;
-    player.colliding |= Colliding.WallLeft;
+    player.collision.wall_left = true;
   } else if (player.r.x + player.size.x >= canvas.width) {
     player.r.x = canvas.width - player.size.x;
-    player.colliding |= Colliding.WallRight;
-  }
-
-  const currentScore = Math.floor(player.r.y / PLATFORM_DISTANCE);
-  if (player.colliding & Colliding.Ground) {
-    player.jumps = 0;
-    score = currentScore;
-    if (score > highscore) {
-      highscore = score;
-      localStorage.setItem("highscore", highscore);
-    }
-  } else if (currentScore < score) {
-    score = currentScore;
-  }
-
-  context.textAlign = "left";
-  context.fillStyle = "white";
-  drawText(`Score: ${score}\nHighscore: ${highscore}`, 20, 20);
-
-  generatePlatforms();
-
-  player.paint(context);
-}
-
-function generatePlatforms() {
-  while (generatedUntil - player.r.y < 2 * canvas.height) {
-    const w = Math.round((100 + rand() * 100) / PLATFORM_HEIGHT) * PLATFORM_HEIGHT;
-    const h = PLATFORM_HEIGHT;
-    const x = (canvas.width - w) * rand();
-    const y = generatedUntil + PLATFORM_DISTANCE;
-    generatedUntil = y;
-    platforms.push(new Platform(x, y, w, h));
+    player.collision.wall_right = true;
   }
 }
 
@@ -623,3 +535,25 @@ function drawText(text, x, y) {
   }
   context.restore();
 }
+
+let score = 0;
+let highscore = localStorage.getItem("highscore") || 0;
+function displayScore() {
+  const currentScore = Math.floor(player.r.y / PLATFORM_DISTANCE);
+  if (player.collision.ground) {
+    player.jumps = 0;
+    score = currentScore;
+    if (score > highscore) {
+      highscore = score;
+      localStorage.setItem("highscore", highscore);
+    }
+  } else if (currentScore < score) {
+    score = currentScore;
+  }
+
+  context.textAlign = "left";
+  context.fillStyle = "white";
+  drawText(`Score: ${score}\nHighscore: ${highscore}`, 20, 20);
+}
+
+// vim: foldmethod=syntax
