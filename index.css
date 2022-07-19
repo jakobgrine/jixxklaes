@@ -27,7 +27,7 @@ body {
     bottom: 0;
     background-image: url("sprite/background.png");
     background-position: bottom;
-    background-size: contain;
+    background-size: auto 100%;
     opacity: 0.8;
 }
 
