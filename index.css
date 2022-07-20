@@ -1,72 +1,63 @@
 * {
     font-family: "Press Start 2P";
     color: white;
+    box-sizing: border-box;
 }
 
 html, body {
-  height: 100%;
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
-    background: black;
-    position: relative;
-    margin: 0;
-    background: transparent;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    overflow-x: hidden;
-}
+    gap: 16px;
 
-#background {
-    z-index: -1;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
     background-image: url("sprite/background.png");
     background-position: bottom;
     background-size: auto 100%;
-    opacity: 0.8;
 }
 
 @media (prefers-color-scheme: dark) {
-    #background {
+    body {
 	background-image: url("sprite/background_night.png");
-	opacity: 1.0;
     }
 }
 
 #seed {
-    appearance: none;
-    margin-top: 32px;
     background: transparent;
     border: none;
 
-    position: absolute;
     text-align: center;
-    font-size: 3rem;
+    font-size: min(10vw, 3rem);
     animation: showup 2s cubic-bezier(1, 0, 0.5, 1);
 }
 
 @keyframes showup {
     from {
-		transform: scale(200%) translateY(300%);
+	transform: scale(200%) translateY(300%);
     }
 }
 
-#canvas {
-    margin-top: 8rem;
+#canvas-container {
+    flex: 1 1 auto;
+    /* Needed so that the container shrinks even if its children are bigger. */
+    overflow: hidden;
+    width: 100%;
+    max-width: 800px;
     border: 1px solid white;
     animation: fadeIn 2s cubic-bezier(1, 0, 0.5, 1);
 }
 
 @keyframes fadeIn {
-	from {
-        opacity: 0;
-	}
-	to {
-        opacity: 1;
-	}
+    from {
+	opacity: 0;
+    }
+    to {
+	opacity: 1;
+    }
 }

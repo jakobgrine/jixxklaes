@@ -315,7 +315,7 @@ function cyrb128(str) {
 
 // Returns a random number generator for the given seed
 function sfc32(a, b, c, d) {
-  return function() {
+  return function () {
     a >>>= 0;
     b >>>= 0;
     c >>>= 0;
@@ -368,7 +368,7 @@ async function main() {
     return;
   }
 
-  canvas.height = window.innerHeight - 170;
+  resizeCanvas();
 
   STATIC_PLATFORMS.push(
     // Ground
@@ -389,10 +389,6 @@ async function main() {
   );
   // Load the seed from the url
   setSeed(window.location.hash.substring(1) || DEFAULT_SEED);
-
-  // Place coordinate system origin in bottom left corner
-  context.scale(1, -1);
-  context.translate(0, -canvas.height);
 
   document.addEventListener("keydown", inputSystem);
   document.addEventListener("keyup", inputSystem);
@@ -573,5 +569,20 @@ function displayScore() {
   context.fillStyle = "white";
   drawText(`Score: ${score}\nHighscore: ${highscore}`, 20, 20);
 }
+
+function resizeCanvas() {
+  if (!canvas) {
+    return;
+  }
+
+  const { width, height } = canvas.parentElement.getBoundingClientRect();
+  canvas.height = height;
+  canvas.width = width;
+
+  // Place coordinate system origin in bottom left corner
+  context.scale(1, -1);
+  context.translate(0, -canvas.height - scrollPosition);
+}
+window.addEventListener("resize", resizeCanvas);
 
 // vim: foldmethod=syntax
