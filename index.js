@@ -284,8 +284,8 @@ class Player extends GameObject {
 
 let player;
 const STATIC_PLATFORMS = [
-    // Ground
-    new Platform(0, 0, MAX_VIEWPORT_WIDTH, PLATFORM_TILE_SIZE)
+  // Ground
+  new Platform(0, 0, MAX_VIEWPORT_WIDTH, PLATFORM_TILE_SIZE),
 ];
 let platforms = STATIC_PLATFORMS.slice();
 

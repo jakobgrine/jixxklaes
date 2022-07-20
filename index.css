@@ -1,63 +1,64 @@
 * {
-    font-family: "Press Start 2P";
-    color: white;
-    box-sizing: border-box;
+  font-family: "Press Start 2P";
+  color: white;
+  box-sizing: border-box;
 }
 
-html, body {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
 
-    background-image: url("sprite/background.png");
-    background-position: bottom;
-    background-size: auto 100%;
+  background-image: url("sprite/background.png");
+  background-position: bottom;
+  background-size: auto 100%;
 }
 
 @media (prefers-color-scheme: dark) {
-    body {
-	background-image: url("sprite/background_night.png");
-    }
+  body {
+    background-image: url("sprite/background_night.png");
+  }
 }
 
 #seed {
-    background: transparent;
-    border: none;
+  background: transparent;
+  border: none;
 
-    text-align: center;
-    font-size: min(10vw, 3rem);
-    animation: showup 2s cubic-bezier(1, 0, 0.5, 1);
+  text-align: center;
+  font-size: min(10vw, 3rem);
+  animation: showup 2s cubic-bezier(1, 0, 0.5, 1);
 }
 
 @keyframes showup {
-    from {
-	transform: scale(200%) translateY(300%);
-    }
+  from {
+    transform: scale(200%) translateY(300%);
+  }
 }
 
 #canvas-container {
-    flex: 1 1 auto;
-    /* Needed so that the container shrinks even if its children are bigger. */
-    overflow: hidden;
-    width: 100%;
-    max-width: 800px;
-    border: 1px solid white;
-    animation: fadeIn 2s cubic-bezier(1, 0, 0.5, 1);
+  flex: 1 1 auto;
+  /* Needed so that the container shrinks even if its children are bigger. */
+  overflow: hidden;
+  width: 100%;
+  max-width: 800px;
+  border: 1px solid white;
+  animation: fadeIn 2s cubic-bezier(1, 0, 0.5, 1);
 }
 
 @keyframes fadeIn {
-    from {
-	opacity: 0;
-    }
-    to {
-	opacity: 1;
-    }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
