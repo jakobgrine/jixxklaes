@@ -10,6 +10,7 @@ const MAX_FALL_VELOCITY = -120;
 
 const PLATFORM_TILE_SIZE = 30;
 const PLATFORM_DISTANCE = 250;
+const MAX_VIEWPORT_WIDTH = 800;
 
 let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
@@ -53,10 +54,8 @@ async function loadSprites() {
   await Promise.all(promises);
 }
 
-let playerSprite;
 let canvas, context;
 let scrollPosition = 0;
-let generatedUntil = 0;
 
 const Direction = {
   Left: "Left",
@@ -284,8 +283,11 @@ class Player extends GameObject {
 }
 
 let player;
-const STATIC_PLATFORMS = [];
-let platforms = [];
+const STATIC_PLATFORMS = [
+    // Ground
+    new Platform(0, 0, MAX_VIEWPORT_WIDTH, PLATFORM_TILE_SIZE)
+];
+let platforms = STATIC_PLATFORMS.slice();
 
 // See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
 // Hash function for strings
@@ -338,10 +340,8 @@ function setSeed(it) {
   seed = cyrb128(it);
   rand = sfc32(seed[0], seed[1], seed[2], seed[3]);
 
-  platforms = STATIC_PLATFORMS.slice();
-  generatedUntil = 0;
   if (canvas) {
-    generatePlatforms();
+    generatePlatforms(true);
   }
 
   const seedElement = document.getElementById("seed");
@@ -369,12 +369,6 @@ async function main() {
   }
 
   resizeCanvas();
-
-  STATIC_PLATFORMS.push(
-    // Ground
-    new Platform(0, 0, canvas.width, PLATFORM_TILE_SIZE)
-  );
-  platforms = STATIC_PLATFORMS;
 
   const seedInput = document.getElementById("seed");
   if (!seedInput) {
@@ -448,7 +442,13 @@ function loop(time) {
 }
 
 // Generates new platforms until there are enough to fill the screen
-function generatePlatforms() {
+let generatedUntil = 0;
+function generatePlatforms(reset) {
+  if (reset) {
+    generatedUntil = 0;
+    platforms = STATIC_PLATFORMS.slice();
+  }
+
   while (generatedUntil - player.r.y < 2 * canvas.height) {
     const w =
       Math.round((100 + rand() * 100) / PLATFORM_TILE_SIZE) *
