@@ -1,0 +1,25 @@
+{
+  "name": "jixxklaes",
+  "version": "1.0.0",
+  "description": "",
+  "source": "src/index.html",
+  "browserslist": "> 0.5%, last 2 versions, not dead",
+  "scripts": {
+    "start": "parcel",
+    "build": "rm -rf dist && parcel build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jakobgrine/jixxklaes.git"
+  },
+  "keywords": [],
+  "author": "Jakob Bierwolf",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jakobgrine/jixxklaes/issues"
+  },
+  "homepage": "https://jakobgrine.github.io/jixxklaes",
+  "devDependencies": {
+    "parcel": "^2.6.2"
+  }
+}

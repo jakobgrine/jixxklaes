@@ -5,7 +5,6 @@ const GRAVITY = -40;
 const GROUND_FRICTION = 4;
 const WALK_VELOCITY = 40;
 const JUMP_VELOCITY = 120;
-const WALL_SLIDE_VELOCITY = -30;
 const MAX_FALL_VELOCITY = -120;
 
 const PLATFORM_TILE_SIZE = 30;
@@ -15,64 +14,91 @@ const MAX_VIEWPORT_WIDTH = 800;
 let _SHOW_DEBUG_INFO = false;
 const _FONT_SIZE = 20;
 
-const Sprites = {
-  Still: "still.png",
-  Walking: ["walking_1.png", "walking_2.png", "walking_3.png", "walking_4.png"],
-  Jumping: "jumping.png",
-  Ground: "ground.png",
-};
+interface SpriteCollection<T> {
+  still: T;
+  walking: T[];
+  jumping: T;
+  ground: T;
+}
 
-function loadImage(filename) {
+const SPRITE_SOURCES: SpriteCollection<URL> = {
+  still: new URL("sprite/still.png", import.meta.url),
+  walking: [
+    new URL("sprite/walking_1.png", import.meta.url),
+    new URL("sprite/walking_2.png", import.meta.url),
+    new URL("sprite/walking_3.png", import.meta.url),
+    new URL("sprite/walking_4.png", import.meta.url),
+  ],
+  jumping: new URL("sprite/jumping.png", import.meta.url),
+  ground: new URL("sprite/ground.png", import.meta.url),
+};
+let SPRITES: SpriteCollection<HTMLImageElement>;
+
+function loadImage(url: URL | string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onerror = reject;
     image.onload = () => resolve(image);
-    image.src = filename;
+    image.src = url.toString();
   });
 }
 
-async function loadSprites() {
+async function loadSprites(sources: SpriteCollection<URL>) {
   // Load all sprites
   const promises = [];
-  for (const key of Object.keys(Sprites)) {
-    if (Array.isArray(Sprites[key])) {
-      for (let i = 0; i < Sprites[key].length; i++) {
+  let sprites: SpriteCollection<HTMLImageElement> = {
+    ground: undefined,
+    jumping: undefined,
+    walking: [],
+    still: undefined,
+  };
+  for (const key of Object.keys(sources)) {
+    if (Array.isArray(sources[key])) {
+      for (let i = 0; i < sources[key].length; i++) {
         promises.push(
-          loadImage("sprite/" + Sprites[key][i]).then(
-            (image) => (Sprites[key][i] = image)
-          )
+          loadImage(sources[key][i]).then((image) => (sprites[key][i] = image))
         );
       }
     } else {
       promises.push(
-        loadImage("sprite/" + Sprites[key]).then(
-          (image) => (Sprites[key] = image)
-        )
+        loadImage(sources[key]).then((image) => (sprites[key] = image))
       );
     }
   }
   await Promise.all(promises);
+  return sprites;
 }
 
-let canvas, context;
+let canvas: HTMLCanvasElement;
+let context: CanvasRenderingContext2D;
 let scrollPosition = 0;
 
-const Direction = {
-  Left: "Left",
-  Right: "Right",
-};
+enum Direction {
+  Left,
+  Right,
+}
+
+interface Collision {
+  ground: boolean;
+  ceiling: boolean;
+  wall_left: boolean;
+  wall_right: boolean;
+}
 
 class Vec2 {
-  constructor(x, y) {
+  x: number;
+  y: number;
+
+  constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
   }
 
-  add(other) {
+  add(other: Vec2) {
     return new Vec2(this.x + other.x, this.y + other.y);
   }
 
-  mul(factor) {
+  mul(factor: number) {
     return new Vec2(this.x * factor, this.y * factor);
   }
 
@@ -82,10 +108,10 @@ class Vec2 {
 }
 
 class GameObject {
-  r;
-  size;
+  r: Vec2;
+  size: Vec2;
 
-  constructor(x, y, w, h) {
+  constructor(x: number, y: number, w: number, h: number) {
     this.r = new Vec2(x, y);
     this.size = new Vec2(w, h);
   }
@@ -102,7 +128,7 @@ class GameObject {
     return this.r.add(this.size.mul(0.5));
   }
 
-  collidesWith(other) {
+  collidesWith(other: GameObject) {
     return (
       this.bottomRight.x >= other.topLeft.x &&
       this.topLeft.x <= other.bottomRight.x &&
@@ -111,7 +137,7 @@ class GameObject {
     );
   }
 
-  overlapWith(other) {
+  overlapWith(other: GameObject) {
     const overlap = new Vec2(Infinity, Infinity);
 
     if (this.topLeft.x < other.topLeft.x) {
@@ -133,15 +159,15 @@ class GameObject {
 }
 
 class Platform extends GameObject {
-  constructor(x, y, w, h) {
+  constructor(x: number, y: number, w: number, h: number) {
     super(x, y, w, h);
   }
 
-  paint(context) {
+  paint(context: CanvasRenderingContext2D) {
     for (let col = 0; col < this.size.x / PLATFORM_TILE_SIZE; col++) {
       for (let row = 0; row < this.size.y / PLATFORM_TILE_SIZE; row++) {
         context.drawImage(
-          Sprites.Ground,
+          SPRITES.ground,
           this.r.x + col * PLATFORM_TILE_SIZE,
           this.r.y + row * PLATFORM_TILE_SIZE,
           PLATFORM_TILE_SIZE,
@@ -159,20 +185,25 @@ class Platform extends GameObject {
 
 class Player extends GameObject {
   v = new Vec2(0, 0);
-  collision = {};
-  walking;
-  direction;
+  collision: Collision = {
+    ground: false,
+    ceiling: false,
+    wall_left: false,
+    wall_right: false,
+  };
+  walking: Direction;
+  direction: Direction;
   jumps = 0;
 
   #walkingAnimationState = 0;
   #walkingAnimationCounter = 0;
 
-  constructor(x, y, h) {
-    const aspectRatio = Sprites.Still.width / Sprites.Still.height;
+  constructor(x: number, y: number, h: number) {
+    const aspectRatio = SPRITES.still.width / SPRITES.still.height;
     super(x, y, aspectRatio * h, h);
   }
 
-  update(dt) {
+  update(dt: number) {
     if (this.walking === Direction.Left) {
       this.v.x = -WALK_VELOCITY;
     } else if (this.walking === Direction.Right) {
@@ -219,7 +250,7 @@ class Player extends GameObject {
     }
   }
 
-  paint(context) {
+  paint(context: CanvasRenderingContext2D) {
     if (_SHOW_DEBUG_INFO) {
       context.strokeStyle = "blue";
       context.strokeRect(this.r.x, this.r.y, this.size.x, this.size.y);
@@ -230,19 +261,18 @@ class Player extends GameObject {
     context.scale(this.direction === Direction.Left ? -1 : 1, -1);
     context.translate(-this.center.x, -this.center.y);
 
-    let sprite;
     if (this.collision.ground) {
       if (
         this.walking &&
         !this.collision.wall_left &&
         !this.collision.wall_right
       ) {
-        sprite = Sprites.Walking[this.#walkingAnimationState];
+        const sprite = SPRITES.walking[this.#walkingAnimationState];
         context.drawImage(
           sprite,
           this.r.x,
           this.r.y,
-          (sprite.width / Sprites.Still.width) * this.size.x,
+          (sprite.width / SPRITES.still.width) * this.size.x,
           this.size.y
         );
 
@@ -251,16 +281,16 @@ class Player extends GameObject {
         this.#walkingAnimationCounter %= 8;
         if (this.#walkingAnimationCounter === 0) {
           this.#walkingAnimationState++;
-          this.#walkingAnimationState %= Sprites.Walking.length;
+          this.#walkingAnimationState %= SPRITES.walking.length;
         }
       } else {
-        sprite = Sprites.Still;
+        const sprite = SPRITES.still;
         context.drawImage(sprite, this.r.x, this.r.y, this.size.x, this.size.y);
       }
     } else {
-      sprite = Sprites.Jumping;
-      const scaledWidth = (sprite.width / Sprites.Still.width) * this.size.x;
-      const scaledHeight = (sprite.height / Sprites.Still.height) * this.size.y;
+      const sprite = SPRITES.jumping;
+      const scaledWidth = (sprite.width / SPRITES.still.width) * this.size.x;
+      const scaledHeight = (sprite.height / SPRITES.still.height) * this.size.y;
       const dw = scaledWidth - this.size.x;
       context.drawImage(
         sprite,
@@ -282,21 +312,21 @@ class Player extends GameObject {
   }
 }
 
-let player;
+let player: Player;
 const STATIC_PLATFORMS = [
-  // Ground
+  // ground
   new Platform(0, 0, MAX_VIEWPORT_WIDTH, PLATFORM_TILE_SIZE),
 ];
 let platforms = STATIC_PLATFORMS.slice();
 
 // See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
 // Hash function for strings
-function cyrb128(str) {
+function cyrb128(str: string) {
   let h1 = 1779033703,
     h2 = 3144134277,
     h3 = 1013904242,
     h4 = 2773480762;
-  for (let i = 0, k; i < str.length; i++) {
+  for (let i = 0, k: number; i < str.length; i++) {
     k = str.charCodeAt(i);
     h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
     h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
@@ -316,7 +346,7 @@ function cyrb128(str) {
 }
 
 // Returns a random number generator for the given seed
-function sfc32(a, b, c, d) {
+function sfc32(a: number, b: number, c: number, d: number) {
   return function () {
     a >>>= 0;
     b >>>= 0;
@@ -333,8 +363,8 @@ function sfc32(a, b, c, d) {
   };
 }
 
-let seed, rand;
-function setSeed(it) {
+let seed: number[], rand: () => number;
+function setSeed(it: string) {
   it = decodeURI(it);
 
   seed = cyrb128(it);
@@ -344,7 +374,9 @@ function setSeed(it) {
     generatePlatforms(true);
   }
 
-  const seedElement = document.getElementById("seed");
+  const seedElement: HTMLInputElement = document.getElementById(
+    "seed"
+  ) as HTMLInputElement;
   if (seedElement) {
     seedElement.value = it;
   }
@@ -353,11 +385,11 @@ function setSeed(it) {
 }
 
 async function main() {
-  await loadSprites();
+  SPRITES = await loadSprites(SPRITE_SOURCES);
 
   player = new Player(250, 200, 70);
 
-  canvas = document.getElementById("canvas");
+  canvas = document.getElementById("canvas") as HTMLCanvasElement;
   if (!canvas) {
     console.error("failed to get canvas element");
     return;
@@ -376,7 +408,9 @@ async function main() {
     return;
   }
   // Update the seed when the input changes
-  seedInput.addEventListener("input", (event) => setSeed(event.target.value));
+  seedInput.addEventListener("input", (event) =>
+    setSeed((event.target as HTMLInputElement).value)
+  );
   // Update the seed when the url changes
   window.addEventListener("hashchange", () =>
     setSeed(window.location.hash.substring(1))
@@ -392,9 +426,9 @@ async function main() {
 window.addEventListener("load", main);
 
 let fpsUpdateCounter = 0;
-let fps = 0;
+let fps: string;
 let lastTime = 0;
-function loop(time) {
+function loop(time: number) {
   window.requestAnimationFrame(loop);
   // Skip first frame
   if (!time) {
@@ -413,11 +447,11 @@ function loop(time) {
 
   if (_SHOW_DEBUG_INFO) {
     // Do not update the fps every frame so it does not flicker
-    fpsUpdateCounter++;
-    fpsUpdateCounter %= 10;
     if (fpsUpdateCounter === 0) {
       fps = (10 / dt).toFixed(1);
     }
+    fpsUpdateCounter++;
+    fpsUpdateCounter %= 10;
 
     context.fillStyle = "lightgreen";
     context.textAlign = "right";
@@ -443,7 +477,7 @@ function loop(time) {
 
 // Generates new platforms until there are enough to fill the screen
 let generatedUntil = 0;
-function generatePlatforms(reset) {
+function generatePlatforms(reset = false) {
   if (reset) {
     generatedUntil = 0;
     platforms = STATIC_PLATFORMS.slice();
@@ -463,7 +497,7 @@ function generatePlatforms(reset) {
 
 let leftPressed = false;
 let rightPressed = false;
-function inputSystem(event) {
+function inputSystem(event: KeyboardEvent) {
   if (event.type === "keydown") {
     switch (event.code) {
       case "Space":
@@ -497,7 +531,12 @@ function inputSystem(event) {
 }
 
 function collisionSystem() {
-  player.collision = {};
+  player.collision = {
+    ground: false,
+    ceiling: false,
+    wall_left: false,
+    wall_right: false,
+  };
   for (const platform of platforms) {
     if (player.collidesWith(platform)) {
       const overlap = player.overlapWith(platform).abs();
@@ -537,12 +576,12 @@ function collisionSystem() {
   }
 }
 
-function drawText(text, x, y) {
+function drawText(text: string, x: number, y: number) {
   context.save();
   context.translate(0, canvas.height + scrollPosition);
   context.scale(1, -1);
 
-  const lines = text.toString().split("\n");
+  const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     context.font = `${_FONT_SIZE}px 'Press Start 2P'`;
     context.fillText(lines[i], x, y + _FONT_SIZE + (_FONT_SIZE + 10) * i);
@@ -559,7 +598,7 @@ function displayScore() {
     score = currentScore;
     if (score > highscore) {
       highscore = score;
-      localStorage.setItem("highscore", highscore);
+      localStorage.setItem("highscore", highscore.toString());
     }
   } else if (currentScore < score) {
     score = currentScore;
