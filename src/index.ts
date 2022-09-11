@@ -74,8 +74,8 @@ let context: CanvasRenderingContext2D;
 let scrollPosition = 0;
 
 enum Direction {
-  Left,
-  Right,
+  Left = "Left",
+  Right = "Right",
 }
 
 interface Collision {
@@ -427,7 +427,7 @@ window.addEventListener("load", main);
 
 let fpsUpdateCounter = 0;
 let fps: string;
-let lastTime = 0;
+let lastTime = -1;
 function loop(time: number) {
   window.requestAnimationFrame(loop);
   // Skip first frame
@@ -435,7 +435,7 @@ function loop(time: number) {
     return;
   }
 
-  const dt = (time - lastTime) / 1e2;
+  const dt = lastTime === -1 ? 0 : (time - lastTime) / 1e2;
   lastTime = time;
 
   if (!canvas || !context) {
