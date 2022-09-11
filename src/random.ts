@@ -1,4 +1,4 @@
-// See https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+// See https://stackoverflow.com/a/47593316
 // Hash function for strings
 function cyrb128(str: string) {
   let h1 = 1779033703,
