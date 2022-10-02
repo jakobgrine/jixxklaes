@@ -1,12 +1,12 @@
 {
   "name": "jixxklaes",
   "version": "1.0.0",
-  "description": "",
+  "description": "A boring vertical platform game.",
   "source": "src/index.html",
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
     "start": "parcel",
-    "build": "rm -rf dist && parcel build --dist-dir docs --public-url /jixxklaes"
+    "build": "parcel build --public-url /jixxklaes"
   },
   "repository": {
     "type": "git",
