@@ -6,7 +6,8 @@
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
     "start": "parcel",
-    "build": "parcel build --public-url /jixxklaes"
+    "build": "parcel build --public-url /jixxklaes",
+    "format": "prettier --write ."
   },
   "repository": {
     "type": "git",
@@ -20,6 +21,7 @@
   },
   "homepage": "https://jakobgrine.github.io/jixxklaes",
   "devDependencies": {
-    "parcel": "^2.9.3"
+    "parcel": "^2.9.3",
+    "prettier": "^3.0.3"
   }
 }
