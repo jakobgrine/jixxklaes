@@ -1,6 +1,6 @@
 {
-  "compilerOptions": {
-    "module": "esnext",
-    "target": "esnext"
-  }
+    "compilerOptions": {
+        "module": "esnext",
+        "target": "esnext"
+    }
 }

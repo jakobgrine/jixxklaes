@@ -1,27 +1,27 @@
 {
-  "name": "jixxklaes",
-  "version": "1.0.0",
-  "description": "A boring vertical platform game.",
-  "source": "src/index.html",
-  "browserslist": "> 0.5%, last 2 versions, not dead",
-  "scripts": {
-    "start": "parcel",
-    "build": "parcel build --public-url /jixxklaes",
-    "format": "prettier --write ."
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jakobgrine/jixxklaes.git"
-  },
-  "keywords": [],
-  "author": "Jakob Bierwolf",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/jakobgrine/jixxklaes/issues"
-  },
-  "homepage": "https://jakobgrine.github.io/jixxklaes",
-  "devDependencies": {
-    "parcel": "^2.9.3",
-    "prettier": "^3.0.3"
-  }
+    "name": "jixxklaes",
+    "version": "1.0.0",
+    "description": "A boring vertical platform game.",
+    "source": "src/index.html",
+    "browserslist": "> 0.5%, last 2 versions, not dead",
+    "scripts": {
+        "start": "parcel",
+        "build": "parcel build --public-url /jixxklaes",
+        "format": "prettier --write ."
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jakobgrine/jixxklaes.git"
+    },
+    "keywords": [],
+    "author": "Jakob Bierwolf",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/jakobgrine/jixxklaes/issues"
+    },
+    "homepage": "https://jakobgrine.github.io/jixxklaes",
+    "devDependencies": {
+        "parcel": "^2.9.3",
+        "prettier": "^3.0.3"
+    }
 }
