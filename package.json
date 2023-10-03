@@ -20,6 +20,6 @@
   },
   "homepage": "https://jakobgrine.github.io/jixxklaes",
   "devDependencies": {
-    "parcel": "^2.6.2"
+    "parcel": "^2.9.3"
   }
 }
